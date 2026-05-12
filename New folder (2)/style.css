@@ -1,0 +1,362 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #0d0f14;
+  color: #d4c9a8;
+  font-family: 'Palatino Linotype', 'Book Antiqua', Palatino, 'Georgia', serif;
+  min-height: 100vh;
+}
+
+#app { display: flex; flex-direction: column; min-height: 100vh; }
+
+/* ── Header ─────────────────────────────────────────── */
+#header {
+  border-bottom: 1px solid #2a2510;
+  padding: 1.5rem 2rem 1rem;
+  background: linear-gradient(180deg, #13100a 0%, #0d0f14 100%);
+}
+#header > div { display: flex; align-items: baseline; gap: 1rem; }
+#header h1 {
+  font-size: 26px; font-weight: normal; letter-spacing: 0.12em;
+  color: #c8a96e; text-transform: uppercase;
+}
+#location-count { font-size: 13px; color: #5a5040; letter-spacing: 0.06em; }
+.subtitle { margin-top: 0.4rem; font-size: 13px; color: #5a5040; font-style: italic; }
+
+/* ── Layout ─────────────────────────────────────────── */
+#layout { display: flex; flex: 1; }
+
+/* ── Sidebar ────────────────────────────────────────── */
+#sidebar {
+  width: 220px; min-width: 220px; border-right: 1px solid #1e1c14;
+  padding: 1rem 0 95px; background: #0b0d11; overflow-y: auto;
+  display: flex; flex-direction: column;
+}
+.sidebar-label {
+  font-size: 10px; letter-spacing: 0.15em; color: #3a3020;
+  text-transform: uppercase; padding: 0 1rem; margin-bottom: 0.75rem;
+}
+.sidebar-divider { border-top: 1px solid #1e1c14; margin-top: 0.5rem; padding-top: 0.5rem; }
+.sidebar-btn {
+  width: 100%; background: transparent; border: none; border-left: 3px solid transparent;
+  padding: 0.6rem 1rem; text-align: left; cursor: pointer;
+  color: #5a5040; font-family: inherit; font-size: 14px; transition: all 0.15s;
+}
+.sidebar-btn:hover { color: #9a8e6e; }
+.sidebar-btn.active { background: #161210; color: #d4c9a8; }
+.sidebar-btn .size-label { font-size: 11px; margin-top: 2px; opacity: 0.8; }
+.sidebar-add { padding: 0.75rem 1rem 0; margin-top: auto; }
+.btn-add {
+  width: 100%; background: none; border: 1px dashed #2a2518; border-radius: 3px;
+  color: #4a4030; font-family: inherit; font-size: 12px; letter-spacing: 0.08em;
+  padding: 0.5rem; cursor: pointer; transition: all 0.15s;
+}
+.btn-add:hover { border-color: #5a5030; color: #7a7050; }
+
+/* ── Main ───────────────────────────────────────────── */
+#main-content { flex: 1; padding: 1.5rem 2rem 7rem; overflow-y: auto; }
+
+/* ── City header ────────────────────────────────────── */
+.city-header { margin-bottom: 1.5rem; }
+.city-header-row { display: flex; align-items: flex-end; gap: 1rem; flex-wrap: wrap; }
+.city-name { font-size: 32px; font-weight: normal; color: #e8ddb8; letter-spacing: 0.08em; }
+.city-name-input {
+  background: transparent; border: none; border-bottom: 1px solid #3a3020;
+  outline: none; color: #e8ddb8; font-family: inherit; font-size: 28px;
+  width: 100%; padding: 0 0 4px; margin-bottom: 0.5rem;
+}
+.size-badge {
+  font-size: 12px; padding: 3px 10px; border-radius: 2px;
+  letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px;
+}
+.traits-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 0.6rem; }
+.trait-tag {
+  font-size: 12px; color: #7a7060; background: #161410;
+  padding: 2px 8px; border-radius: 2px; border: 1px solid #2a2518;
+}
+
+/* ── Tabs ───────────────────────────────────────────── */
+.tabs { display: flex; border-bottom: 1px solid #2a2518; margin-bottom: 1.5rem; }
+.tab-btn {
+  background: none; border: none; border-bottom: 2px solid transparent;
+  color: #5a5040; font-family: inherit; font-size: 13px; letter-spacing: 0.1em;
+  text-transform: uppercase; padding: 0.5rem 1.25rem; cursor: pointer;
+  margin-bottom: -1px; transition: color 0.15s;
+}
+.tab-btn:hover { color: #9a8e6e; }
+.tab-btn.active { border-bottom-color: #c8a96e; color: #c8a96e; }
+
+/* ── Stat boxes ─────────────────────────────────────── */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 1.5rem; }
+.stat-box {
+  background: #10100e; border: 1px solid #1e1c14; border-radius: 3px; padding: 0.75rem 1rem;
+}
+.stat-label {
+  font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: #4a4030; margin-bottom: 4px;
+}
+.stat-val { font-size: 20px; color: #c8a96e; }
+
+/* ── Flavor quote ───────────────────────────────────── */
+.flavor-quote {
+  font-size: 15px; font-style: italic; color: #9a8e6e; line-height: 1.7;
+  border-left: 3px solid #2a2518; padding-left: 1rem; margin-bottom: 1.5rem;
+}
+
+/* ── Content boxes ──────────────────────────────────── */
+.box { background: #10100e; border: 1px solid #1e1c14; border-radius: 3px; padding: 1rem; }
+.box-label {
+  font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: #4a4030; margin-bottom: 0.6rem;
+}
+.box-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.list-item { font-size: 13px; color: #9a8e6e; padding: 3px 0; border-bottom: 1px solid #1a1810; }
+
+/* ── Shop/Faction cards grid ────────────────────────── */
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.card-btn {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px; background: #10100e; border: 1px solid #1e1c14;
+  border-radius: 3px; cursor: pointer; text-align: left; width: 100%;
+  font-family: inherit; transition: background 0.15s;
+}
+.card-btn:hover { background: #161410; }
+.card-btn .card-name { font-size: 13px; color: #a09070; }
+.card-btn .card-count { font-size: 16px; font-weight: bold; color: #c8a96e; min-width: 24px; text-align: right; }
+.card-btn .dot { margin-left: 6px; font-size: 10px; color: #5a5030; }
+.card-btn.has-note { border-color: #3a3020; }
+.footer-note { font-size: 12px; color: #3a3020; margin-top: 1rem; font-style: italic; }
+.fav-btn {
+  background: none; border: none; cursor: pointer; padding: 3px 4px;
+  color: #3a3020; display: flex; align-items: center; flex-shrink: 0;
+  line-height: 1; border-radius: 2px; transition: color 0.15s;
+}
+.fav-btn:hover { color: #c8a96e; }
+.fav-btn.fav-active { color: #c8a96e; }
+
+/* ── Faction card colors ────────────────────────────── */
+.faction-danger { background: #3a1a1a; border-color: #6b2f2f; }
+.faction-danger .card-name, .faction-danger .card-count { color: #e07070; }
+.faction-warning { background: #2e2410; border-color: #6b5020; }
+.faction-warning .card-name, .faction-warning .card-count { color: #d4a550; }
+.faction-neutral { background: #1a1e2e; border-color: #2e3a5e; }
+.faction-neutral .card-name, .faction-neutral .card-count { color: #8090c0; }
+.faction-nature { background: #162213; border-color: #2a4a30; }
+.faction-nature .card-name, .faction-nature .card-count { color: #5db87a; }
+.faction-arcane { background: #1e1530; border-color: #3d2870; }
+.faction-arcane .card-name, .faction-arcane .card-count { color: #a07ed8; }
+
+/* ── Faction legend ─────────────────────────────────── */
+.faction-legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 1rem; }
+.faction-legend span { font-size: 11px; letter-spacing: 0.06em; }
+
+/* ── Detail page ────────────────────────────────────── */
+.back-btn {
+  background: none; border: none; color: #5a5040; font-family: inherit;
+  font-size: 13px; cursor: pointer; padding: 0 0 1rem; letter-spacing: 0.06em;
+}
+.back-btn:hover { color: #9a8e6e; }
+.detail-header {
+  border-radius: 3px; padding: 1rem 1.25rem; margin-bottom: 1.5rem;
+  display: flex; justify-content: space-between; align-items: flex-start;
+}
+.detail-label { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.6; margin-bottom: 4px; }
+.detail-title { font-size: 20px; font-weight: normal; }
+.detail-count-label { font-size: 11px; opacity: 0.5; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 2px; }
+.detail-count { font-size: 28px; font-weight: bold; }
+
+/* ── Instance buttons ───────────────────────────────── */
+.instance-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1.5rem; }
+.instance-btn {
+  padding: 6px 14px; background: #10100e; border: 1px solid #1e1c14;
+  border-radius: 3px; font-size: 12px; color: #5a5040; letter-spacing: 0.06em;
+  cursor: pointer; font-family: inherit; transition: all 0.15s;
+  display: flex; align-items: center; gap: 5px;
+}
+.instance-btn.active { border-color: #c8a96e; color: #c8a96e; }
+.instance-btn.has-note { border-color: #3a3020; color: #7a7050; }
+.instance-btn .dot { font-size: 8px; opacity: 0.7; }
+.instance-btn .pencil { font-size: 8px; opacity: 0.4; }
+.instance-rename-input {
+  background: transparent; border: none; outline: none;
+  color: #c8a96e; font-family: inherit; font-size: 12px; letter-spacing: 0.06em;
+}
+.instance-rename-wrap {
+  display: flex; align-items: center; gap: 4px; padding: 3px 6px;
+  border: 1px solid #c8a96e; border-radius: 3px; background: #10100e;
+}
+
+/* ── Section label ──────────────────────────────────── */
+.section-label {
+  font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: #3a3020; margin-bottom: 0.6rem;
+}
+.section-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; }
+
+/* ── Textarea & inputs ──────────────────────────────── */
+.note-textarea {
+  width: 100%; min-height: 220px; background: #0a0a08; border: 1px solid #2a2518;
+  border-radius: 3px; color: #c8b880; font-family: inherit; font-size: 14px;
+  line-height: 1.7; padding: 0.75rem 1rem; resize: vertical; outline: none;
+}
+.note-textarea:focus { border-color: #4a4030; }
+.edit-textarea {
+  width: 100%; min-height: 90px; background: #0a0a08; border: 1px solid #2a2518;
+  border-radius: 3px; color: #c8b880; font-family: inherit; font-size: 14px;
+  line-height: 1.7; padding: 0.5rem 0.75rem; resize: vertical; outline: none;
+}
+.edit-textarea:focus { border-color: #4a4030; }
+.edit-input {
+  background: #0a0a08; border: 1px solid #2a2518; border-radius: 3px;
+  color: #c8b880; font-family: inherit; font-size: 13px; padding: 5px 10px; outline: none;
+}
+.edit-input:focus { border-color: #4a4030; }
+
+/* ── Save button ────────────────────────────────────── */
+.save-row { display: flex; justify-content: flex-end; margin-top: 0.6rem; }
+.btn-save {
+  background: #10100e; border: 1px solid #1e1c14; border-radius: 3px;
+  color: #3a3020; font-family: inherit; font-size: 13px; letter-spacing: 0.08em;
+  padding: 6px 18px; cursor: pointer; transition: all 0.15s;
+}
+.btn-save:hover { border-color: #4a4020; }
+.btn-save.dirty { background: #1e1c10; border-color: #4a4020; color: #c8a96e; }
+.btn-save-loc {
+  background: #10100e; border: 1px solid #1e1c14; border-radius: 3px;
+  color: #3a3020; font-family: inherit; font-size: 13px; letter-spacing: 0.08em;
+  padding: 6px 20px; cursor: default; transition: all 0.2s;
+}
+.btn-save-loc.dirty { background: #1e1c10; border-color: #4a4020; color: #c8a96e; cursor: pointer; }
+.save-status { font-size: 11px; transition: color 0.3s; }
+
+/* ── Small buttons ──────────────────────────────────── */
+.btn-sm {
+  background: #1a180e; border: 1px solid #3a3020; border-radius: 3px;
+  color: #c8a96e; font-family: inherit; font-size: 12px; padding: 4px 14px; cursor: pointer;
+}
+.btn-sm-ghost {
+  background: none; border: 1px solid #2a2518; border-radius: 3px;
+  color: #5a5040; font-family: inherit; font-size: 12px; padding: 4px 14px; cursor: pointer;
+}
+.btn-delete {
+  background: none; border: 1px solid #2a1818; border-radius: 3px;
+  color: #5a3030; font-family: inherit; font-size: 11px; padding: 3px 8px; cursor: pointer;
+}
+.btn-edit {
+  background: none; border: 1px solid #2a2518; border-radius: 3px;
+  color: #5a5040; font-family: inherit; font-size: 11px; padding: 3px 8px;
+  cursor: pointer; letter-spacing: 0.06em;
+}
+.btn-dashed {
+  width: 100%; background: none; border: 1px dashed #2a2518; border-radius: 3px;
+  color: #4a4030; font-family: inherit; font-size: 13px; letter-spacing: 0.08em;
+  padding: 0.75rem; cursor: pointer; margin-top: 4px; transition: all 0.15s;
+}
+.btn-dashed:hover { border-color: #5a5030; color: #7a7050; }
+.btn-rename {
+  background: none; border: 1px solid #2a2518; border-radius: 3px;
+  color: #4a4030; font-family: inherit; font-size: 11px; padding: 2px 8px;
+  cursor: pointer; letter-spacing: 0.06em;
+}
+
+/* ── Lore cards ─────────────────────────────────────── */
+.lore-card {
+  padding: 1rem 1.25rem; background: #0e0c09; border: 1px solid #1e1c14;
+  border-left: 3px solid #3a3020; border-radius: 3px; margin-bottom: 10px;
+  display: flex; align-items: flex-start; gap: 8px; transition: border-color 0.15s;
+}
+.lore-card:hover { border-left-color: #5a5030; }
+.lore-card p { flex: 1; font-size: 14px; color: #9a8e6e; line-height: 1.7; font-style: italic; }
+.lore-card-editing {
+  background: #0e0c09; border: 1px solid #4a4020; border-left: 3px solid #c8a96e;
+  border-radius: 3px; padding: 0.75rem 1rem; margin-bottom: 10px;
+}
+.lore-btns { display: flex; gap: 6px; flex-shrink: 0; padding-top: 2px; }
+
+/* ── Tags ───────────────────────────────────────────── */
+.tag-list { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.tag {
+  display: flex; align-items: center; gap: 4px; font-size: 12px;
+  padding: 2px 8px; background: #161410; border: 1px solid #2a2518;
+  border-radius: 2px; color: #9a8e6e;
+}
+.tag .btn-x {
+  background: none; border: none; color: #5a3030; cursor: pointer; padding: 0; font-size: 11px; line-height: 1;
+}
+.tag-input-row { display: flex; gap: 6px; }
+.tag-input {
+  flex: 1; background: #0a0a08; border: 1px solid #2a2518; border-radius: 3px;
+  color: #c8b880; font-family: inherit; font-size: 13px; padding: 4px 8px; outline: none;
+}
+.tag-input:focus { border-color: #4a4030; }
+
+/* ── Shop/faction editor rows ───────────────────────── */
+.sf-row {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+}
+.sf-row.sf-header { color: #5a5040; font-weight: 600; }
+.sf-row .sf-name { flex: 1; font-size: 13px; color: #9a8e6e; }
+.sf-row .sf-count { font-size: 13px; color: #c8a96e; min-width: 20px; text-align: center; }
+.sf-row .sf-type { font-size: 11px; color: #5a5040; min-width: 50px; }
+.sf-add-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.sf-input {
+  background: #0a0a08; border: 1px solid #2a2518; border-radius: 3px;
+  color: #c8b880; font-family: inherit; font-size: 13px; padding: 4px 8px; outline: none;
+}
+.sf-input:focus { border-color: #4a4030; }
+.sf-select {
+  background: #0a0a08; border: 1px solid #2a2518; border-radius: 3px;
+  color: #c8b880; font-family: inherit; font-size: 12px; padding: 4px 6px; outline: none;
+}
+
+/* ── Custom location section labels ─────────────────── */
+.custom-section-label {
+  margin: 1.25rem 0 0.5rem; font-size: 11px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: #4a4030;
+}
+.custom-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 1.5rem; flex-wrap: wrap; gap: 0.75rem;
+}
+
+/* ── Popup ──────────────────────────────────────────── */
+.popup-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  display: flex; align-items: center; justify-content: center; z-index: 100;
+}
+.popup-overlay.hidden { display: none; }
+.popup-card {
+  background: #13110e; border: 1px solid #3a3020; border-radius: 6px;
+  padding: 2rem; width: 340px; font-family: inherit;
+}
+.popup-label { font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: #5a5040; margin-bottom: 0.4rem; }
+.popup-title { font-size: 20px; font-weight: normal; color: #c8a96e; margin-bottom: 1.5rem; }
+.popup-desc { font-size: 13px; color: #7a6e50; margin-bottom: 1rem; }
+.popup-options { display: flex; flex-direction: column; gap: 10px; }
+.popup-option {
+  background: #0e0c09; border: 1px solid #2a2518; border-radius: 4px;
+  padding: 0.75rem 1rem; cursor: pointer; text-align: left; font-family: inherit;
+  transition: border-color 0.15s;
+}
+.popup-option:hover { border-color: #5a504088; }
+.popup-option-title { font-size: 14px; margin-bottom: 3px; }
+.popup-option-desc { font-size: 12px; color: #5a5040; line-height: 1.4; }
+.popup-cancel {
+  margin-top: 1.25rem; background: none; border: none; color: #4a4030;
+  font-family: inherit; font-size: 12px; cursor: pointer; letter-spacing: 0.06em;
+}
+
+/* ── Hotbar ─────────────────────────────────────────── */
+#hotbar {
+  position: fixed; bottom: 0; left: 0; right: 0; height: 88px;
+  background: #0b0d11; border-top: 1px solid #1e1c14; display: flex;
+  justify-content: center; align-items: center; gap: 20px; z-index: 50;
+}
+.hotbar-btn {
+  width: 50px; height: 50px; border-radius: 50%; background: #10100e;
+  border: 1px solid #2a2518; color: #5a5040; display: flex; align-items: center;
+  justify-content: center; cursor: pointer; transition: all 0.15s;
+}
+.hotbar-btn:hover { border-color: #5a5030; color: #9a8e6e; }
+.hotbar-btn.active { background: #161210; border-color: #c8a96e; color: #c8a96e; }
+.hotbar-btn svg { width: 24px; height: 24px; }
