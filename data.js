@@ -73,7 +73,6 @@ const CITIES = [
       { name: "Tanning & Leather Work", count: 1 },
     ],
     factions: [
-      { name: "Stone Circle Council", count: 1, type: "neutral" },
       { name: "Druidic Enclaves", count: 1, type: "nature" },
     ],
   },
@@ -153,7 +152,7 @@ const CITIES = [
       { name: "Government Agencies", count: 1, type: "neutral" },
       { name: "Religious Sects", count: 1, type: "neutral" },
       { name: "Spy Network", count: 1, type: "danger" },
-      { name: "Riggers' Guild", count: 1, type: "neutral" },
+      { name: "Maritime Guild", count: 1, type: "neutral" },
     ],
   },
   {
@@ -217,7 +216,7 @@ const CITIES = [
     factions: [
       { name: "Government Agencies", count: 1, type: "neutral" },
       { name: "Religious Sects", count: 1, type: "neutral" },
-      { name: "Elder Tide Council", count: 1, type: "neutral" },
+      { name: "Elder Council", count: 1, type: "neutral" },
     ],
   },
   {
@@ -326,10 +325,7 @@ const CITIES = [
       { name: "Spy Network", count: 2, type: "danger" },
       { name: "Druidic Enclaves", count: 1, type: "nature" },
       { name: "Arcane Society", count: 1, type: "arcane" },
-      { name: "Jade Registry", count: 1, type: "neutral" },
-      { name: "Mountain Covenant", count: 1, type: "neutral" },
-      { name: "Merchants' League", count: 1, type: "neutral" },
-      { name: "Aqueduct Authority", count: 1, type: "neutral" },
+      { name: "Nomadic Tribe", count: 1, type: "neutral" },
     ],
   },
   {
@@ -375,8 +371,7 @@ const CITIES = [
       { name: "Druidic Enclaves", count: 1, type: "nature" },
       { name: "Arcane Society", count: 1, type: "arcane" },
       { name: "Miners' Guild", count: 1, type: "neutral" },
-      { name: "Pass Wardens", count: 1, type: "neutral" },
-      { name: "Coastal Traders' League", count: 1, type: "neutral" },
+      { name: "Maritime Alliance", count: 1, type: "neutral" },
     ],
   },
   {
@@ -420,9 +415,9 @@ const CITIES = [
       { name: "Religious Sects", count: 3, type: "neutral" },
       { name: "Spy Network", count: 1, type: "danger" },
       { name: "Druidic Enclaves", count: 1, type: "nature" },
-      { name: "Bluff Families Council", count: 1, type: "neutral" },
-      { name: "Channel District Guild", count: 1, type: "neutral" },
-      { name: "Salt Extractors' Union", count: 1, type: "neutral" },
+      { name: "Noble Council", count: 1, type: "neutral" },
+      { name: "Commerce Guild", count: 1, type: "neutral" },
+      { name: "Laborers' Union", count: 1, type: "neutral" },
     ],
   },
   {
@@ -465,10 +460,8 @@ const CITIES = [
       { name: "Government Agencies", count: 3, type: "neutral" },
       { name: "Religious Sects", count: 3, type: "neutral" },
       { name: "Spy Network", count: 2, type: "danger" },
-      { name: "Merchants' Consortium", count: 1, type: "neutral" },
-      { name: "Dyers' & Weavers' Guild", count: 1, type: "neutral" },
+      { name: "Artisans' Guild", count: 1, type: "neutral" },
       { name: "Sailors' Union", count: 1, type: "neutral" },
-      { name: "River Wardens", count: 1, type: "neutral" },
     ],
   },
   {
@@ -513,8 +506,7 @@ const CITIES = [
       { name: "Spy Network", count: 1, type: "danger" },
       { name: "Druidic Enclaves", count: 1, type: "nature" },
       { name: "Merchants' Guild", count: 1, type: "neutral" },
-      { name: "Fishers' Collective", count: 1, type: "neutral" },
-      { name: "Lake Council", count: 1, type: "neutral" },
+      { name: "Workers' Collective", count: 1, type: "neutral" },
     ],
   },
   {

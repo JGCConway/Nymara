@@ -5,6 +5,17 @@ const ALL_DND_RACES = [
 ];
 const ALL_RACE_NAMES = ALL_DND_RACES.flatMap(g => g.races);
 
+function getAllBuiltinStoreTypes() {
+  const names = new Set();
+  for (const city of CITIES) for (const s of city.shops || []) names.add(s.name);
+  return [...names].sort();
+}
+function getAllBuiltinFactionTypes() {
+  const names = new Set();
+  for (const city of CITIES) for (const f of city.factions || []) names.add(f.name);
+  return [...names].sort();
+}
+
 // ── State ──────────────────────────────────────────────────────────────────
 let selected = CITIES[0];
 let selectedType = "city"; // "city"|"landmark"|"dungeon"
@@ -60,7 +71,19 @@ let pcEditorState = null;
 let cityFavorites = lsGet("cityFavorites", {}); // { [cityId]: true }
 function saveCityFavorites() { lsSet("cityFavorites", cityFavorites); }
 let settingsAllowedRaces = lsGet("settingsAllowedRaces", ALL_RACE_NAMES);
-function saveSettings() { lsSet("settingsAllowedRaces", settingsAllowedRaces); }
+let settingsCustomRaces = lsGet("settingsCustomRaces", []);
+let settingsAllowedStoreTypes = lsGet("settingsAllowedStoreTypes", getAllBuiltinStoreTypes());
+let settingsCustomStoreTypes = lsGet("settingsCustomStoreTypes", []);
+let settingsAllowedFactionTypes = lsGet("settingsAllowedFactionTypes", getAllBuiltinFactionTypes());
+let settingsCustomFactionTypes = lsGet("settingsCustomFactionTypes", []);
+function saveSettings() {
+  lsSet("settingsAllowedRaces", settingsAllowedRaces);
+  lsSet("settingsCustomRaces", settingsCustomRaces);
+  lsSet("settingsAllowedStoreTypes", settingsAllowedStoreTypes);
+  lsSet("settingsCustomStoreTypes", settingsCustomStoreTypes);
+  lsSet("settingsAllowedFactionTypes", settingsAllowedFactionTypes);
+  lsSet("settingsCustomFactionTypes", settingsCustomFactionTypes);
+}
 
 // ── Favorites ───────────────────────────────────────────────────────────────
 const SVG_FAV_OFF = `<svg xmlns="http://www.w3.org/2000/svg" height="18px" viewBox="0 -960 960 960" width="18px" fill="currentColor"><path d="M200-120v-640q0-33 23.5-56.5T280-840h400q33 0 56.5 23.5T760-760v640L480-240 200-120Zm80-122 200-86 200 86v-518H280v518Zm0-518h400-400Z"/></svg>`;
@@ -174,12 +197,13 @@ function getCityFactions(cityId) {
   const base = city?.factions ? city.factions.map(f => ({ name: f.name, count: f.count, type: f.type })) : [];
   const map = new Map();
   for (const f of base) {
+    if (!settingsAllowedFactionTypes.includes(f.name)) continue;
     const customInstances = factionLinks
       .filter(faction => factionMatchesBaseName(faction, f.name))
       .flatMap(faction => faction.assignments.filter(a => a.cityId === cityId).map(a => a.instanceIdx))
       .filter(idx => idx != null);
     const maxCustomInstance = customInstances.length > 0 ? Math.max(...customInstances) : -1;
-    const count = Math.max(f.count, maxCustomInstance + 1);
+    const count = Math.min(Math.max(f.count, maxCustomInstance + 1), 3);
     map.set(f.name, { name: f.name, count, type: f.type });
   }
   // Also add custom factions that don't overlap with any base entry
@@ -191,7 +215,7 @@ function getCityFactions(cityId) {
         .flatMap(faction => faction.assignments.filter(a => a.cityId === cityId).map(a => a.instanceIdx))
         .filter(idx => idx != null);
       const maxCustomInstance = customInstances.length > 0 ? Math.max(...customInstances) : -1;
-      const count = Math.max(1, maxCustomInstance + 1);
+      const count = Math.min(Math.max(1, maxCustomInstance + 1), 3);
       map.set(f.name, { name: f.name, count, type: f.type });
     }
   }
@@ -202,13 +226,14 @@ function getKnownFactionNames() {
   const names = new Set();
   for (const city of allLocations()) {
     for (const faction of city.factions || []) {
-      if (faction.name) names.add(faction.name);
+      if (faction.name && settingsAllowedFactionTypes.includes(faction.name)) names.add(faction.name);
     }
   }
   for (const faction of factionLinks) {
     const value = faction.type || faction.name;
     if (value) names.add(value);
   }
+  for (const type of settingsCustomFactionTypes) names.add(type);
   return Array.from(names).sort((a, b) => a.localeCompare(b));
 }
 
@@ -231,12 +256,13 @@ function getKnownStoreNames() {
   const names = new Set();
   for (const city of allLocations()) {
     for (const shop of city.shops || []) {
-      names.add(shop.name);
+      if (settingsAllowedStoreTypes.includes(shop.name)) names.add(shop.name);
     }
   }
   for (const store of storeLinks) {
     names.add(store.name);
   }
+  for (const type of settingsCustomStoreTypes) names.add(type);
   return Array.from(names).sort((a, b) => a.localeCompare(b));
 }
 
@@ -252,13 +278,13 @@ function getCityShops(cityId) {
   const base = city?.shops ? city.shops.map(s => ({ name: s.name, count: s.count })) : [];
   const map = new Map();
   for (const shop of base) {
-    // Find max instanceIdx for this shop type
+    if (!settingsAllowedStoreTypes.includes(shop.name)) continue;
     const customInstances = storeLinks
       .filter(s => s.type === shop.name)
       .flatMap(s => s.assignments.filter(a => a.cityId === cityId).map(a => a.instanceIdx))
       .filter(idx => idx != null);
     const maxCustomInstance = customInstances.length > 0 ? Math.max(...customInstances) : -1;
-    const count = Math.max(shop.count, maxCustomInstance + 1);
+    const count = Math.min(Math.max(shop.count, maxCustomInstance + 1), 6);
     map.set(shop.name, { name: shop.name, count });
   }
   // Also surface custom store links assigned to this city with no matching base entry
@@ -272,7 +298,7 @@ function getCityShops(cityId) {
       .flatMap(s => s.assignments.filter(a => a.cityId === cityId).map(a => a.instanceIdx))
       .filter(idx => idx != null);
     const maxInstance = allInstances.length > 0 ? Math.max(...allInstances) : -1;
-    map.set(store.type, { name: store.type, count: maxInstance + 1 });
+    map.set(store.type, { name: store.type, count: Math.min(maxInstance + 1, 6) });
   }
   return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -971,12 +997,13 @@ function getKnownStoreNames() {
   const names = new Set();
   for (const city of allLocations()) {
     for (const shop of city.shops || []) {
-      names.add(shop.name);
+      if (settingsAllowedStoreTypes.includes(shop.name)) names.add(shop.name);
     }
   }
   for (const store of storeLinks) {
     names.add(store.name);
   }
+  for (const type of settingsCustomStoreTypes) names.add(type);
   return Array.from(names).sort((a, b) => a.localeCompare(b));
 }
 
@@ -2269,7 +2296,7 @@ function renderNpcEditor(main) {
       <div class="custom-section-label">Race / Species</div>
       <select class="edit-input" id="npc-race" style="width:100%">
         ${(() => {
-          const options = settingsAllowedRaces.length ? [...settingsAllowedRaces] : [...ALL_RACE_NAMES];
+          const options = [...settingsCustomRaces, ...(settingsAllowedRaces.length ? settingsAllowedRaces : ALL_RACE_NAMES)];
           if (npc.race && !options.includes(npc.race)) options.unshift(npc.race);
           const placeholder = `<option value="" ${!npc.race ? "selected" : ""} disabled>Select Race</option>`;
           return placeholder + options.map(r => `<option value="${esc(r)}"${r === npc.race ? " selected" : ""}>${esc(r)}</option>`).join("");
@@ -2506,7 +2533,12 @@ function renderPcEditor(main) {
       <div><div class="section-label">Player</div><input class="edit-input" id="pc-player" style="width:100%" value="${esc(pc.player || "")}"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
-      <div><div class="section-label">Race</div><input class="edit-input" id="pc-race" style="width:100%" value="${esc(pc.race || "")}"></div>
+      <div><div class="section-label">Race</div><select class="edit-input" id="pc-race" style="width:100%">${(() => {
+          const options = [...settingsCustomRaces, ...(settingsAllowedRaces.length ? settingsAllowedRaces : ALL_RACE_NAMES)];
+          if (pc.race && !options.includes(pc.race)) options.unshift(pc.race);
+          const placeholder = `<option value="" ${!pc.race ? "selected" : ""} disabled>Select Race</option>`;
+          return placeholder + options.map(r => `<option value="${esc(r)}"${r === pc.race ? " selected" : ""}>${esc(r)}</option>`).join("");
+        })()}</select></div>
       <div><div class="section-label">Class</div><input class="edit-input" id="pc-class" style="width:100%" value="${esc(pc.class || "")}"></div>
       <div><div class="section-label">Subclass</div><input class="edit-input" id="pc-subclass" style="width:100%" value="${esc(pc.subclass || "")}"></div>
     </div>
@@ -2660,20 +2692,42 @@ function openPcEditor(id) {
 
 // ── Settings Page ──────────────────────────────────────────────────────────
 function renderSettingsPage(main) {
+  const btnStyle = (border, color) =>
+    `background:none;border:1px solid ${border};border-radius:2px;color:${color};font-family:inherit;font-size:11px;letter-spacing:0.08em;padding:4px 10px;cursor:pointer;`;
+
   let html = `<div style="max-width:700px;margin:0 auto;">`;
   html += `<h2 style="font-size:22px;font-weight:normal;color:#c8a96e;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.25rem;">Settings</h2>`;
   html += `<p style="font-size:13px;color:#5a5040;font-style:italic;margin-bottom:2rem;">Campaign configuration for The World of Nymara</p>`;
 
+  // ── Races ──────────────────────────────────────────────────────────────────
   html += `<div style="background:#0e1214;border:1px solid #1e2a1e;border-left:3px solid #5db87a;border-radius:2px;padding:1.25rem 1.5rem;margin-bottom:1.5rem;">`;
-  html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">`;
-  html += `<div>
-    <div style="font-size:14px;color:#d4c9a8;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px;">Available NPC Races</div>
-    <div style="font-size:12px;color:#5a5040;font-style:italic;">Select which races appear in the NPC race dropdown</div>
+  html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+    <div>
+      <div style="font-size:14px;color:#d4c9a8;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px;">Available Races</div>
+      <div style="font-size:12px;color:#5a5040;font-style:italic;">Select which races appear in the NPC and PC race dropdowns</div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button id="settings-race-all" style="${btnStyle("#2a3a2a", "#7a9a6a")}">Select All</button>
+      <button id="settings-race-none" style="${btnStyle("#2a2518", "#5a5040")}">Deselect All</button>
+    </div>
   </div>`;
-  html += `<div style="display:flex;gap:8px;">
-    <button id="settings-race-all" style="background:none;border:1px solid #2a3a2a;border-radius:2px;color:#7a9a6a;font-family:inherit;font-size:11px;letter-spacing:0.08em;padding:4px 10px;cursor:pointer;">Select All</button>
-    <button id="settings-race-none" style="background:none;border:1px solid #2a2518;border-radius:2px;color:#5a5040;font-family:inherit;font-size:11px;letter-spacing:0.08em;padding:4px 10px;cursor:pointer;">Deselect All</button>
+
+  // Homebrew races subsection
+  html += `<div style="margin-bottom:1rem;padding:0.75rem 1rem;background:#0a0c0a;border:1px solid #1e2a1e;border-radius:2px;">`;
+  html += `<div style="font-size:10px;letter-spacing:0.15em;color:#3a5a3a;text-transform:uppercase;margin-bottom:0.5rem;">Homebrew / Custom</div>`;
+  html += `<div style="display:flex;gap:6px;margin-bottom:${settingsCustomRaces.length ? "0.5rem" : "0"};">
+    <input id="settings-custom-race-input" class="edit-input" placeholder="Add custom race name..." style="flex:1;font-size:13px;">
+    <button id="settings-custom-race-add" style="background:#1a2a1a;border:1px solid #2a4a2a;border-radius:2px;color:#7a9a6a;font-family:inherit;font-size:13px;padding:4px 14px;cursor:pointer;">+ Add</button>
   </div>`;
+  if (settingsCustomRaces.length) {
+    html += `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:0.5rem;">`;
+    for (const race of settingsCustomRaces) {
+      html += `<span style="display:inline-flex;align-items:center;gap:4px;background:#131c13;border:1px solid #2a4a2a;border-radius:2px;padding:4px 8px 4px 10px;font-size:13px;color:#a8c8a0;">
+        ${esc(race)}<button data-remove-custom-race="${esc(race)}" style="background:none;border:none;color:#5a7a5a;cursor:pointer;font-size:15px;line-height:1;padding:0 0 0 2px;" title="Remove">×</button>
+      </span>`;
+    }
+    html += `</div>`;
+  }
   html += `</div>`;
 
   for (const group of ALL_DND_RACES) {
@@ -2682,17 +2736,112 @@ function renderSettingsPage(main) {
     html += `<div style="display:flex;flex-wrap:wrap;gap:6px;">`;
     for (const race of group.races) {
       const checked = settingsAllowedRaces.includes(race);
-      html += `<label style="display:flex;align-items:center;gap:6px;background:${checked ? "#131c13" : "#0d0f14"};border:1px solid ${checked ? "#2a4a2a" : "#1e1c14"};border-radius:2px;padding:5px 10px;cursor:pointer;font-size:13px;color:${checked ? "#a8c8a0" : "#5a5040"};transition:all 0.15s;" data-race="${esc(race)}">
+      html += `<label style="display:flex;align-items:center;gap:6px;background:${checked ? "#131c13" : "#0d0f14"};border:1px solid ${checked ? "#2a4a2a" : "#1e1c14"};border-radius:2px;padding:5px 10px;cursor:pointer;font-size:13px;color:${checked ? "#a8c8a0" : "#5a5040"};transition:all 0.15s;">
         <input type="checkbox" data-race-check="${esc(race)}" style="accent-color:#5db87a;cursor:pointer;"${checked ? " checked" : ""}> ${esc(race)}
       </label>`;
     }
     html += `</div></div>`;
   }
+  html += `</div>`;
 
+  // ── Store Types ────────────────────────────────────────────────────────────
+  const allStoreTypes = getAllBuiltinStoreTypes();
+  html += `<div style="background:#0e1214;border:1px solid #1e1e14;border-left:3px solid #d4a550;border-radius:2px;padding:1.25rem 1.5rem;margin-bottom:1.5rem;">`;
+  html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+    <div>
+      <div style="font-size:14px;color:#d4c9a8;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px;">Available Store Types</div>
+      <div style="font-size:12px;color:#5a5040;font-style:italic;">Select which store types appear in city views · max 6 per type per city</div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button id="settings-store-all" style="${btnStyle("#3a3010", "#a08030")}">Select All</button>
+      <button id="settings-store-none" style="${btnStyle("#2a2518", "#5a5040")}">Deselect All</button>
+    </div>
+  </div>`;
+  html += `<div style="margin-bottom:1rem;padding:0.75rem 1rem;background:#0a0c0a;border:1px solid #2a2010;border-radius:2px;">`;
+  html += `<div style="font-size:10px;letter-spacing:0.15em;color:#5a4a20;text-transform:uppercase;margin-bottom:0.5rem;">Homebrew / Custom</div>`;
+  html += `<div style="display:flex;gap:6px;margin-bottom:${settingsCustomStoreTypes.length ? "0.5rem" : "0"};">
+    <input id="settings-custom-store-input" class="edit-input" placeholder="Add custom store type..." style="flex:1;font-size:13px;">
+    <button id="settings-custom-store-add" style="background:#2a1e08;border:1px solid #3a2a10;border-radius:2px;color:#a08030;font-family:inherit;font-size:13px;padding:4px 14px;cursor:pointer;">+ Add</button>
+  </div>`;
+  if (settingsCustomStoreTypes.length) {
+    html += `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:0.5rem;">`;
+    for (const type of settingsCustomStoreTypes) {
+      html += `<span style="display:inline-flex;align-items:center;gap:4px;background:#1a1408;border:1px solid #3a2a10;border-radius:2px;padding:4px 8px 4px 10px;font-size:13px;color:#c8a060;">
+        ${esc(type)}<button data-remove-custom-store="${esc(type)}" style="background:none;border:none;color:#7a6030;cursor:pointer;font-size:15px;line-height:1;padding:0 0 0 2px;" title="Remove">×</button>
+      </span>`;
+    }
+    html += `</div>`;
+  }
+  html += `</div>`;
+  html += `<div style="display:flex;flex-wrap:wrap;gap:6px;">`;
+  for (const type of allStoreTypes) {
+    const checked = settingsAllowedStoreTypes.includes(type);
+    html += `<label style="display:flex;align-items:center;gap:6px;background:${checked ? "#1a1408" : "#0d0f14"};border:1px solid ${checked ? "#3a2a10" : "#1e1c14"};border-radius:2px;padding:5px 10px;cursor:pointer;font-size:13px;color:${checked ? "#c8a060" : "#5a5040"};transition:all 0.15s;">
+      <input type="checkbox" data-store-type-check="${esc(type)}" style="accent-color:#d4a550;cursor:pointer;"${checked ? " checked" : ""}> ${esc(type)}
+    </label>`;
+  }
   html += `</div></div>`;
+
+  // ── Faction Types ──────────────────────────────────────────────────────────
+  const allFactionTypes = getAllBuiltinFactionTypes();
+  html += `<div style="background:#0e1214;border:1px solid #1a1e2e;border-left:3px solid #5a8ab0;border-radius:2px;padding:1.25rem 1.5rem;margin-bottom:1.5rem;">`;
+  html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+    <div>
+      <div style="font-size:14px;color:#d4c9a8;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px;">Available Faction Types</div>
+      <div style="font-size:12px;color:#5a5040;font-style:italic;">Select which faction types appear in city views · max 3 per type per city</div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button id="settings-faction-all" style="${btnStyle("#1e2a3e", "#5a7a9a")}">Select All</button>
+      <button id="settings-faction-none" style="${btnStyle("#2a2518", "#5a5040")}">Deselect All</button>
+    </div>
+  </div>`;
+  html += `<div style="margin-bottom:1rem;padding:0.75rem 1rem;background:#0a0c0e;border:1px solid #1a2030;border-radius:2px;">`;
+  html += `<div style="font-size:10px;letter-spacing:0.15em;color:#2a3a5a;text-transform:uppercase;margin-bottom:0.5rem;">Homebrew / Custom</div>`;
+  html += `<div style="display:flex;gap:6px;margin-bottom:${settingsCustomFactionTypes.length ? "0.5rem" : "0"};">
+    <input id="settings-custom-faction-input" class="edit-input" placeholder="Add custom faction type..." style="flex:1;font-size:13px;">
+    <button id="settings-custom-faction-add" style="background:#0e1828;border:1px solid #1e2a3e;border-radius:2px;color:#5a7a9a;font-family:inherit;font-size:13px;padding:4px 14px;cursor:pointer;">+ Add</button>
+  </div>`;
+  if (settingsCustomFactionTypes.length) {
+    html += `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:0.5rem;">`;
+    for (const type of settingsCustomFactionTypes) {
+      html += `<span style="display:inline-flex;align-items:center;gap:4px;background:#0e1520;border:1px solid #1e3050;border-radius:2px;padding:4px 8px 4px 10px;font-size:13px;color:#7090c0;">
+        ${esc(type)}<button data-remove-custom-faction="${esc(type)}" style="background:none;border:none;color:#3a5070;cursor:pointer;font-size:15px;line-height:1;padding:0 0 0 2px;" title="Remove">×</button>
+      </span>`;
+    }
+    html += `</div>`;
+  }
+  html += `</div>`;
+  html += `<div style="display:flex;flex-wrap:wrap;gap:6px;">`;
+  for (const type of allFactionTypes) {
+    const checked = settingsAllowedFactionTypes.includes(type);
+    html += `<label style="display:flex;align-items:center;gap:6px;background:${checked ? "#0e1520" : "#0d0f14"};border:1px solid ${checked ? "#1e3050" : "#1e1c14"};border-radius:2px;padding:5px 10px;cursor:pointer;font-size:13px;color:${checked ? "#7090c0" : "#5a5040"};transition:all 0.15s;">
+      <input type="checkbox" data-faction-type-check="${esc(type)}" style="accent-color:#5a8ab0;cursor:pointer;"${checked ? " checked" : ""}> ${esc(type)}
+    </label>`;
+  }
+  html += `</div></div>`;
+
+  // ── Data Export / Import ───────────────────────────────────────────────────
+  html += `<div style="background:#0e0c0a;border:1px solid #2a2010;border-left:3px solid #7a5a30;border-radius:2px;padding:1.25rem 1.5rem;margin-bottom:1.5rem;">`;
+  html += `<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+    <div>
+      <div style="font-size:14px;color:#d4c9a8;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px;">Data</div>
+      <div style="font-size:12px;color:#5a5040;font-style:italic;">Export all campaign data to a JSON file, or restore from a previous export</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-shrink:0;align-items:center;">
+      <button id="settings-export-data" style="background:#1a1408;border:1px solid #3a2a10;border-radius:2px;color:#c8a060;font-family:inherit;font-size:12px;letter-spacing:0.08em;padding:6px 14px;cursor:pointer;">Download JSON</button>
+      <label id="settings-import-label" style="background:#0e0c0a;border:1px solid #2a2010;border-radius:2px;color:#7a6040;font-family:inherit;font-size:12px;letter-spacing:0.08em;padding:6px 14px;cursor:pointer;display:inline-block;">
+        Upload JSON
+        <input type="file" id="settings-import-file" accept=".json" style="display:none;">
+      </label>
+    </div>
+  </div>
+  <div id="settings-import-status" style="margin-top:0.75rem;font-size:12px;display:none;"></div>`;
+  html += `</div>`;
+
+  html += `</div>`;
   main.innerHTML = html;
 
-  // Checkbox change handler
+  // ── Race event handlers ────────────────────────────────────────────────────
   main.querySelectorAll("input[data-race-check]").forEach(cb => {
     cb.onchange = () => {
       const race = cb.dataset.raceCheck;
@@ -2702,11 +2851,9 @@ function renderSettingsPage(main) {
         settingsAllowedRaces = settingsAllowedRaces.filter(r => r !== race);
       }
       saveSettings();
-      // Re-render to update label styles
       renderSettingsPage(main);
     };
   });
-
   document.getElementById("settings-race-all").onclick = () => {
     settingsAllowedRaces = [...ALL_RACE_NAMES];
     saveSettings();
@@ -2716,6 +2863,144 @@ function renderSettingsPage(main) {
     settingsAllowedRaces = [];
     saveSettings();
     renderSettingsPage(main);
+  };
+
+  // Custom race add/remove
+  const customInput = document.getElementById("settings-custom-race-input");
+  document.getElementById("settings-custom-race-add").onclick = () => {
+    const val = customInput.value.trim();
+    if (!val || settingsCustomRaces.includes(val) || ALL_RACE_NAMES.includes(val)) return;
+    settingsCustomRaces = [...settingsCustomRaces, val];
+    saveSettings();
+    renderSettingsPage(main);
+  };
+  customInput.onkeydown = e => { if (e.key === "Enter") document.getElementById("settings-custom-race-add").click(); };
+  main.querySelectorAll("[data-remove-custom-race]").forEach(btn => {
+    btn.onclick = () => {
+      settingsCustomRaces = settingsCustomRaces.filter(r => r !== btn.dataset.removeCustomRace);
+      saveSettings();
+      renderSettingsPage(main);
+    };
+  });
+
+  // ── Store type event handlers ──────────────────────────────────────────────
+  const customStoreInput = document.getElementById("settings-custom-store-input");
+  document.getElementById("settings-custom-store-add").onclick = () => {
+    const val = customStoreInput.value.trim();
+    if (!val || settingsCustomStoreTypes.includes(val) || getAllBuiltinStoreTypes().includes(val)) return;
+    settingsCustomStoreTypes = [...settingsCustomStoreTypes, val];
+    saveSettings();
+    renderSettingsPage(main);
+  };
+  customStoreInput.onkeydown = e => { if (e.key === "Enter") document.getElementById("settings-custom-store-add").click(); };
+  main.querySelectorAll("[data-remove-custom-store]").forEach(btn => {
+    btn.onclick = () => {
+      settingsCustomStoreTypes = settingsCustomStoreTypes.filter(t => t !== btn.dataset.removeCustomStore);
+      saveSettings();
+      renderSettingsPage(main);
+    };
+  });
+
+  main.querySelectorAll("input[data-store-type-check]").forEach(cb => {
+    cb.onchange = () => {
+      const type = cb.dataset.storeTypeCheck;
+      if (cb.checked) {
+        if (!settingsAllowedStoreTypes.includes(type)) settingsAllowedStoreTypes = [...settingsAllowedStoreTypes, type];
+      } else {
+        settingsAllowedStoreTypes = settingsAllowedStoreTypes.filter(t => t !== type);
+      }
+      saveSettings();
+      renderSettingsPage(main);
+    };
+  });
+  document.getElementById("settings-store-all").onclick = () => {
+    settingsAllowedStoreTypes = getAllBuiltinStoreTypes();
+    saveSettings();
+    renderSettingsPage(main);
+  };
+  document.getElementById("settings-store-none").onclick = () => {
+    settingsAllowedStoreTypes = [];
+    saveSettings();
+    renderSettingsPage(main);
+  };
+
+  // ── Faction type event handlers ────────────────────────────────────────────
+  const customFactionInput = document.getElementById("settings-custom-faction-input");
+  document.getElementById("settings-custom-faction-add").onclick = () => {
+    const val = customFactionInput.value.trim();
+    if (!val || settingsCustomFactionTypes.includes(val) || getAllBuiltinFactionTypes().includes(val)) return;
+    settingsCustomFactionTypes = [...settingsCustomFactionTypes, val];
+    saveSettings();
+    renderSettingsPage(main);
+  };
+  customFactionInput.onkeydown = e => { if (e.key === "Enter") document.getElementById("settings-custom-faction-add").click(); };
+  main.querySelectorAll("[data-remove-custom-faction]").forEach(btn => {
+    btn.onclick = () => {
+      settingsCustomFactionTypes = settingsCustomFactionTypes.filter(t => t !== btn.dataset.removeCustomFaction);
+      saveSettings();
+      renderSettingsPage(main);
+    };
+  });
+
+  main.querySelectorAll("input[data-faction-type-check]").forEach(cb => {
+    cb.onchange = () => {
+      const type = cb.dataset.factionTypeCheck;
+      if (cb.checked) {
+        if (!settingsAllowedFactionTypes.includes(type)) settingsAllowedFactionTypes = [...settingsAllowedFactionTypes, type];
+      } else {
+        settingsAllowedFactionTypes = settingsAllowedFactionTypes.filter(t => t !== type);
+      }
+      saveSettings();
+      renderSettingsPage(main);
+    };
+  });
+  document.getElementById("settings-faction-all").onclick = () => {
+    settingsAllowedFactionTypes = getAllBuiltinFactionTypes();
+    saveSettings();
+    renderSettingsPage(main);
+  };
+  document.getElementById("settings-faction-none").onclick = () => {
+    settingsAllowedFactionTypes = [];
+    saveSettings();
+    renderSettingsPage(main);
+  };
+
+  // ── Data export / import ───────────────────────────────────────────────────
+  document.getElementById("settings-export-data").onclick = () => {
+    const data = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key.startsWith("atlas:")) continue;
+      const shortKey = key.slice("atlas:".length);
+      try { data[shortKey] = JSON.parse(localStorage.getItem(key)); } catch { data[shortKey] = localStorage.getItem(key); }
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `nymara-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  document.getElementById("settings-import-file").onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = evt => {
+      const status = document.getElementById("settings-import-status");
+      try {
+        const data = JSON.parse(evt.target.result);
+        if (typeof data !== "object" || Array.isArray(data)) throw new Error("Invalid format — expected a JSON object");
+        for (const [key, val] of Object.entries(data)) lsSet(key, val);
+        location.reload();
+      } catch (err) {
+        status.textContent = "Import failed: " + err.message;
+        status.style.color = "#a05040";
+        status.style.display = "block";
+      }
+    };
+    reader.readAsText(file);
   };
 }
 
