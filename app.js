@@ -3213,3 +3213,29 @@ function esc(s) {
   if (typeof s !== "string") return s;
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
+
+// ── Mobile sidebar toggle ─────────────────────────────────────────────────
+(function () {
+  const toggle = document.getElementById("mobile-menu-toggle");
+  const sidebar = document.getElementById("sidebar");
+  const backdrop = document.getElementById("sidebar-backdrop");
+
+  function openSidebar() {
+    sidebar.classList.add("sidebar-open");
+    backdrop.classList.add("active");
+  }
+  function closeSidebar() {
+    sidebar.classList.remove("sidebar-open");
+    backdrop.classList.remove("active");
+  }
+
+  if (toggle) toggle.onclick = () =>
+    sidebar.classList.contains("sidebar-open") ? closeSidebar() : openSidebar();
+
+  if (backdrop) backdrop.onclick = closeSidebar;
+
+  // Close sidebar when a location is selected
+  sidebar.addEventListener("click", e => {
+    if (e.target.closest(".sidebar-btn")) closeSidebar();
+  });
+})();

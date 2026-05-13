@@ -360,3 +360,53 @@ body {
 .hotbar-btn:hover { border-color: #5a5030; color: #9a8e6e; }
 .hotbar-btn.active { background: #161210; border-color: #c8a96e; color: #c8a96e; }
 .hotbar-btn svg { width: 24px; height: 24px; }
+
+/* ── Mobile menu toggle (hidden on desktop/tablet) ──────────────────────── */
+.mobile-menu-toggle {
+  display: none;
+  background: none; border: none; color: #5a5040; cursor: pointer;
+  padding: 4px; border-radius: 4px; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: color 0.15s;
+}
+.mobile-menu-toggle:hover { color: #9a8e6e; }
+
+/* ── Sidebar backdrop (mobile overlay, JS-controlled) ───────────────────── */
+#sidebar-backdrop {
+  display: none; position: fixed; inset: 0; bottom: 88px;
+  background: rgba(0, 0, 0, 0.6); z-index: 59;
+}
+#sidebar-backdrop.active { display: block; }
+
+/* ── Mobile overrides (≤767px) ───────────────────────────────────────────── */
+@media (max-width: 767px) {
+  /* Show hamburger, fix header alignment so icon is vertically centered */
+  .mobile-menu-toggle { display: flex; }
+  #header > div { align-items: center; }
+
+  /* Sidebar — slide-in overlay */
+  #sidebar {
+    position: fixed;
+    top: 0; bottom: 88px; left: 0;
+    z-index: 60;
+    width: 260px; min-width: 260px;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    padding-bottom: 1rem;
+  }
+  #sidebar.sidebar-open { transform: translateX(0); }
+
+  /* Main content fills full width (sidebar is out of flow) */
+  #main-content { padding: 1rem 1rem 7rem; }
+
+  /* Hotbar — horizontally scrollable */
+  #hotbar {
+    justify-content: flex-start;
+    overflow-x: auto; overflow-y: hidden;
+    padding: 0 16px; gap: 14px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  #hotbar::-webkit-scrollbar { display: none; }
+  /* Prevent buttons from shrinking — required for overflow/scroll to kick in */
+  .hotbar-btn { flex-shrink: 0; }
+}
