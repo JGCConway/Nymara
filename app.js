@@ -35,6 +35,7 @@ let locationFilterType = "all";
 let npcFilterProfession = "all";
 let npcFilterFaction = "all";
 let npcEditorState = null;
+let currentSearchQuery = "";
 
 // localStorage helpers
 function lsGet(key, fallback) {
@@ -411,13 +412,25 @@ function renderHeader() {
   } else {
     countText = "";
   }
+  const showMenuToggle = !["home", "pcs", "settings"].includes(currentPage);
   header.innerHTML = `
-    <div>
-      <h1>${title}</h1>
-      ${countText ? `<span id="location-count">${countText}</span>` : ""}
+    <div class="header-top">
+      <div class="header-title-group">
+        ${showMenuToggle ? `<button id="mobile-menu-toggle" class="mobile-menu-toggle" aria-label="Toggle locations menu">
+          <svg xmlns="http://www.w3.org/2000/svg" height="22px" viewBox="0 -960 960 960" width="22px" fill="currentColor"><path d="M120-240v-80h720v80H120Zm0-200v-80h720v80H120Zm0-200v-80h720v80H120Z"/></svg>
+        </button>` : ""}
+        <h1>${title}</h1>
+        ${countText ? `<span id="location-count">${countText}</span>` : ""}
+      </div>
+      <div class="header-search-wrap">
+        <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <input id="global-search" class="global-search-input" type="text" placeholder="Search…" autocomplete="off" value="${esc(currentSearchQuery)}" oninput="handleSearchInput(this.value)" onkeydown="if(event.key==='Escape'){handleSearchInput('');this.value='';this.blur();}">
+        <div id="search-dropdown" class="search-dropdown hidden"></div>
+      </div>
     </div>
     <p class="subtitle">${subtitle}</p>
   `;
+  renderSearchDropdown(currentSearchQuery);
 }
 
 function renderHotbar() {
@@ -2692,38 +2705,64 @@ function openPcEditor(id) {
 
 // ── Settings Page ──────────────────────────────────────────────────────────
 function renderSettingsPage(main) {
-  const btnStyle = (border, color) =>
-    `background:none;border:1px solid ${border};border-radius:2px;color:${color};font-family:inherit;font-size:11px;letter-spacing:0.08em;padding:4px 10px;cursor:pointer;`;
+  const lm = document.body.classList.contains("light-mode");
+  const btnStyle = (darkBorder, darkColor, lightBorder, lightColor) =>
+    `background:none;border:1px solid ${lm && lightBorder ? lightBorder : darkBorder};border-radius:2px;color:${lm && lightColor ? lightColor : darkColor};font-family:inherit;font-size:11px;letter-spacing:0.08em;padding:4px 10px;cursor:pointer;`;
+  const rp = lm
+    ? { chBg:"#d8f0d8",chBr:"#90c090",chCl:"#2a6a2a",unBg:"#ede8d8",unBr:"#d4c8a0",unCl:"#9a8860",tagBg:"#d0eed0",tagBr:"#90c090",tagCl:"#2a7a2a",addBg:"#d8f0d8",addBr:"#90c090",addCl:"#2a7a2a",grpCl:"#7a6a40" }
+    : { chBg:"#131c13",chBr:"#2a4a2a",chCl:"#a8c8a0",unBg:"#0d0f14",unBr:"#1e1c14",unCl:"#5a5040",tagBg:"#131c13",tagBr:"#2a4a2a",tagCl:"#a8c8a0",addBg:"#1a2a1a",addBr:"#2a4a2a",addCl:"#7a9a6a",grpCl:"#3a3020" };
+  const sp = lm
+    ? { chBg:"#f0ece0",chBr:"#d4c4a0",chCl:"#7a5a20",unBg:"#ede8d8",unBr:"#d4c8a0",unCl:"#9a8860",tagBg:"#f0ece0",tagBr:"#d4c4a0",tagCl:"#7a5a20",addBg:"#f0ece0",addBr:"#d4c4a0",addCl:"#8a6820" }
+    : { chBg:"#1a1408",chBr:"#3a2a10",chCl:"#c8a060",unBg:"#0d0f14",unBr:"#1e1c14",unCl:"#5a5040",tagBg:"#1a1408",tagBr:"#3a2a10",tagCl:"#c8a060",addBg:"#2a1e08",addBr:"#3a2a10",addCl:"#a08030" };
+  const fp = lm
+    ? { chBg:"#e8eaf0",chBr:"#c0c8d4",chCl:"#4a5a9a",unBg:"#ede8d8",unBr:"#d4c8a0",unCl:"#9a8860",tagBg:"#e8eaf0",tagBr:"#c0c8d4",tagCl:"#4a5a9a",addBg:"#e8eaf0",addBr:"#c0c8d4",addCl:"#4a5a9a" }
+    : { chBg:"#0e1520",chBr:"#1e3050",chCl:"#7090c0",unBg:"#0d0f14",unBr:"#1e1c14",unCl:"#5a5040",tagBg:"#0e1520",tagBr:"#1e3050",tagCl:"#7090c0",addBg:"#0e1828",addBr:"#1e2a3e",addCl:"#5a7a9a" };
+  const dp = lm
+    ? { expBg:"#f0ece0",expBr:"#d4c4a0",expCl:"#7a5a20",impBg:"#ede8d8",impBr:"#d4c8a0",impCl:"#9a8860" }
+    : { expBg:"#1a1408",expBr:"#3a2a10",expCl:"#c8a060",impBg:"#0e0c0a",impBr:"#2a2010",impCl:"#7a6040" };
 
   let html = `<div style="max-width:700px;margin:0 auto;">`;
-  html += `<h2 style="font-size:22px;font-weight:normal;color:#c8a96e;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.25rem;">Settings</h2>`;
-  html += `<p style="font-size:13px;color:#5a5040;font-style:italic;margin-bottom:2rem;">Campaign configuration for The World of Nymara</p>`;
+  html += `<h2 class="page-title">Settings</h2>`;
+  html += `<p class="page-subtitle-sm" style="margin-bottom:2rem;">Campaign configuration for The World of Nymara</p>`;
+
+  // ── Appearance ─────────────────────────────────────────────────────────────
+  html += `<div class="settings-section ss-appearance">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+      <div>
+        <div class="settings-section-title">Appearance</div>
+        <div class="settings-section-sub">Switch between dark and light theme</div>
+      </div>
+      <button id="btn-theme-toggle" style="background:${lm ? "#e8e0cc" : "#1a180e"};border:1px solid ${lm ? "#c8b890" : "#3a3020"};border-radius:3px;color:${lm ? "#7a5e14" : "#c8a96e"};font-family:inherit;font-size:13px;letter-spacing:0.08em;padding:6px 18px;cursor:pointer;">
+        ${lm ? "☀ Light — click for Dark" : "☾ Dark — click for Light"}
+      </button>
+    </div>
+  </div>`;
 
   // ── Races ──────────────────────────────────────────────────────────────────
-  html += `<div style="background:#0e1214;border:1px solid #1e2a1e;border-left:3px solid #5db87a;border-radius:2px;padding:1.25rem 1.5rem;margin-bottom:1.5rem;">`;
+  html += `<div class="settings-section ss-races">`;
   html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
     <div>
-      <div style="font-size:14px;color:#d4c9a8;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px;">Available Races</div>
-      <div style="font-size:12px;color:#5a5040;font-style:italic;">Select which races appear in the NPC and PC race dropdowns</div>
+      <div class="settings-section-title">Available Races</div>
+      <div class="settings-section-sub">Select which races appear in the NPC and PC race dropdowns</div>
     </div>
     <div style="display:flex;gap:8px;">
-      <button id="settings-race-all" style="${btnStyle("#2a3a2a", "#7a9a6a")}">Select All</button>
-      <button id="settings-race-none" style="${btnStyle("#2a2518", "#5a5040")}">Deselect All</button>
+      <button id="settings-race-all" style="${btnStyle("#2a3a2a", "#7a9a6a", "#90c090", "#3a8a5a")}">Select All</button>
+      <button id="settings-race-none" style="${btnStyle("#2a2518", "#5a5040", "#c8c0a0", "#9a8860")}">Deselect All</button>
     </div>
   </div>`;
 
   // Homebrew races subsection
-  html += `<div style="margin-bottom:1rem;padding:0.75rem 1rem;background:#0a0c0a;border:1px solid #1e2a1e;border-radius:2px;">`;
-  html += `<div style="font-size:10px;letter-spacing:0.15em;color:#3a5a3a;text-transform:uppercase;margin-bottom:0.5rem;">Homebrew / Custom</div>`;
+  html += `<div class="ss-sub ss-sub-races">`;
+  html += `<div class="ss-sub-label ss-sub-label-green">Homebrew / Custom</div>`;
   html += `<div style="display:flex;gap:6px;margin-bottom:${settingsCustomRaces.length ? "0.5rem" : "0"};">
     <input id="settings-custom-race-input" class="edit-input" placeholder="Add custom race name..." style="flex:1;font-size:13px;">
-    <button id="settings-custom-race-add" style="background:#1a2a1a;border:1px solid #2a4a2a;border-radius:2px;color:#7a9a6a;font-family:inherit;font-size:13px;padding:4px 14px;cursor:pointer;">+ Add</button>
+    <button id="settings-custom-race-add" style="background:${rp.addBg};border:1px solid ${rp.addBr};border-radius:2px;color:${rp.addCl};font-family:inherit;font-size:13px;padding:4px 14px;cursor:pointer;">+ Add</button>
   </div>`;
   if (settingsCustomRaces.length) {
     html += `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:0.5rem;">`;
     for (const race of settingsCustomRaces) {
-      html += `<span style="display:inline-flex;align-items:center;gap:4px;background:#131c13;border:1px solid #2a4a2a;border-radius:2px;padding:4px 8px 4px 10px;font-size:13px;color:#a8c8a0;">
-        ${esc(race)}<button data-remove-custom-race="${esc(race)}" style="background:none;border:none;color:#5a7a5a;cursor:pointer;font-size:15px;line-height:1;padding:0 0 0 2px;" title="Remove">×</button>
+      html += `<span style="display:inline-flex;align-items:center;gap:4px;background:${rp.tagBg};border:1px solid ${rp.tagBr};border-radius:2px;padding:4px 8px 4px 10px;font-size:13px;color:${rp.tagCl};">
+        ${esc(race)}<button data-remove-custom-race="${esc(race)}" style="background:none;border:none;color:${rp.tagCl};opacity:0.6;cursor:pointer;font-size:15px;line-height:1;padding:0 0 0 2px;" title="Remove">×</button>
       </span>`;
     }
     html += `</div>`;
@@ -2732,11 +2771,11 @@ function renderSettingsPage(main) {
 
   for (const group of ALL_DND_RACES) {
     html += `<div style="margin-bottom:1rem;">`;
-    html += `<div style="font-size:10px;letter-spacing:0.15em;color:#3a3020;text-transform:uppercase;margin-bottom:0.5rem;">${esc(group.group)}</div>`;
+    html += `<div style="font-size:10px;letter-spacing:0.15em;color:${rp.grpCl};text-transform:uppercase;margin-bottom:0.5rem;">${esc(group.group)}</div>`;
     html += `<div style="display:flex;flex-wrap:wrap;gap:6px;">`;
     for (const race of group.races) {
       const checked = settingsAllowedRaces.includes(race);
-      html += `<label style="display:flex;align-items:center;gap:6px;background:${checked ? "#131c13" : "#0d0f14"};border:1px solid ${checked ? "#2a4a2a" : "#1e1c14"};border-radius:2px;padding:5px 10px;cursor:pointer;font-size:13px;color:${checked ? "#a8c8a0" : "#5a5040"};transition:all 0.15s;">
+      html += `<label style="display:flex;align-items:center;gap:6px;background:${checked ? rp.chBg : rp.unBg};border:1px solid ${checked ? rp.chBr : rp.unBr};border-radius:2px;padding:5px 10px;cursor:pointer;font-size:13px;color:${checked ? rp.chCl : rp.unCl};transition:all 0.15s;">
         <input type="checkbox" data-race-check="${esc(race)}" style="accent-color:#5db87a;cursor:pointer;"${checked ? " checked" : ""}> ${esc(race)}
       </label>`;
     }
@@ -2746,28 +2785,28 @@ function renderSettingsPage(main) {
 
   // ── Store Types ────────────────────────────────────────────────────────────
   const allStoreTypes = getAllBuiltinStoreTypes();
-  html += `<div style="background:#0e1214;border:1px solid #1e1e14;border-left:3px solid #d4a550;border-radius:2px;padding:1.25rem 1.5rem;margin-bottom:1.5rem;">`;
+  html += `<div class="settings-section ss-stores">`;
   html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
     <div>
-      <div style="font-size:14px;color:#d4c9a8;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px;">Available Store Types</div>
-      <div style="font-size:12px;color:#5a5040;font-style:italic;">Select which store types appear in city views · max 6 per type per city</div>
+      <div class="settings-section-title">Available Store Types</div>
+      <div class="settings-section-sub">Select which store types appear in city views · max 6 per type per city</div>
     </div>
     <div style="display:flex;gap:8px;">
-      <button id="settings-store-all" style="${btnStyle("#3a3010", "#a08030")}">Select All</button>
-      <button id="settings-store-none" style="${btnStyle("#2a2518", "#5a5040")}">Deselect All</button>
+      <button id="settings-store-all" style="${btnStyle("#3a3010", "#a08030", "#d4c4a0", "#8a6820")}">Select All</button>
+      <button id="settings-store-none" style="${btnStyle("#2a2518", "#5a5040", "#c8c0a0", "#9a8860")}">Deselect All</button>
     </div>
   </div>`;
-  html += `<div style="margin-bottom:1rem;padding:0.75rem 1rem;background:#0a0c0a;border:1px solid #2a2010;border-radius:2px;">`;
-  html += `<div style="font-size:10px;letter-spacing:0.15em;color:#5a4a20;text-transform:uppercase;margin-bottom:0.5rem;">Homebrew / Custom</div>`;
+  html += `<div class="ss-sub ss-sub-stores">`;
+  html += `<div class="ss-sub-label ss-sub-label-gold">Homebrew / Custom</div>`;
   html += `<div style="display:flex;gap:6px;margin-bottom:${settingsCustomStoreTypes.length ? "0.5rem" : "0"};">
     <input id="settings-custom-store-input" class="edit-input" placeholder="Add custom store type..." style="flex:1;font-size:13px;">
-    <button id="settings-custom-store-add" style="background:#2a1e08;border:1px solid #3a2a10;border-radius:2px;color:#a08030;font-family:inherit;font-size:13px;padding:4px 14px;cursor:pointer;">+ Add</button>
+    <button id="settings-custom-store-add" style="background:${sp.addBg};border:1px solid ${sp.addBr};border-radius:2px;color:${sp.addCl};font-family:inherit;font-size:13px;padding:4px 14px;cursor:pointer;">+ Add</button>
   </div>`;
   if (settingsCustomStoreTypes.length) {
     html += `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:0.5rem;">`;
     for (const type of settingsCustomStoreTypes) {
-      html += `<span style="display:inline-flex;align-items:center;gap:4px;background:#1a1408;border:1px solid #3a2a10;border-radius:2px;padding:4px 8px 4px 10px;font-size:13px;color:#c8a060;">
-        ${esc(type)}<button data-remove-custom-store="${esc(type)}" style="background:none;border:none;color:#7a6030;cursor:pointer;font-size:15px;line-height:1;padding:0 0 0 2px;" title="Remove">×</button>
+      html += `<span style="display:inline-flex;align-items:center;gap:4px;background:${sp.tagBg};border:1px solid ${sp.tagBr};border-radius:2px;padding:4px 8px 4px 10px;font-size:13px;color:${sp.tagCl};">
+        ${esc(type)}<button data-remove-custom-store="${esc(type)}" style="background:none;border:none;color:${sp.tagCl};opacity:0.6;cursor:pointer;font-size:15px;line-height:1;padding:0 0 0 2px;" title="Remove">×</button>
       </span>`;
     }
     html += `</div>`;
@@ -2776,7 +2815,7 @@ function renderSettingsPage(main) {
   html += `<div style="display:flex;flex-wrap:wrap;gap:6px;">`;
   for (const type of allStoreTypes) {
     const checked = settingsAllowedStoreTypes.includes(type);
-    html += `<label style="display:flex;align-items:center;gap:6px;background:${checked ? "#1a1408" : "#0d0f14"};border:1px solid ${checked ? "#3a2a10" : "#1e1c14"};border-radius:2px;padding:5px 10px;cursor:pointer;font-size:13px;color:${checked ? "#c8a060" : "#5a5040"};transition:all 0.15s;">
+    html += `<label style="display:flex;align-items:center;gap:6px;background:${checked ? sp.chBg : sp.unBg};border:1px solid ${checked ? sp.chBr : sp.unBr};border-radius:2px;padding:5px 10px;cursor:pointer;font-size:13px;color:${checked ? sp.chCl : sp.unCl};transition:all 0.15s;">
       <input type="checkbox" data-store-type-check="${esc(type)}" style="accent-color:#d4a550;cursor:pointer;"${checked ? " checked" : ""}> ${esc(type)}
     </label>`;
   }
@@ -2784,28 +2823,28 @@ function renderSettingsPage(main) {
 
   // ── Faction Types ──────────────────────────────────────────────────────────
   const allFactionTypes = getAllBuiltinFactionTypes();
-  html += `<div style="background:#0e1214;border:1px solid #1a1e2e;border-left:3px solid #5a8ab0;border-radius:2px;padding:1.25rem 1.5rem;margin-bottom:1.5rem;">`;
+  html += `<div class="settings-section ss-factions">`;
   html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
     <div>
-      <div style="font-size:14px;color:#d4c9a8;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px;">Available Faction Types</div>
-      <div style="font-size:12px;color:#5a5040;font-style:italic;">Select which faction types appear in city views · max 3 per type per city</div>
+      <div class="settings-section-title">Available Faction Types</div>
+      <div class="settings-section-sub">Select which faction types appear in city views · max 3 per type per city</div>
     </div>
     <div style="display:flex;gap:8px;">
-      <button id="settings-faction-all" style="${btnStyle("#1e2a3e", "#5a7a9a")}">Select All</button>
-      <button id="settings-faction-none" style="${btnStyle("#2a2518", "#5a5040")}">Deselect All</button>
+      <button id="settings-faction-all" style="${btnStyle("#1e2a3e", "#5a7a9a", "#c0c8d4", "#4a5a9a")}">Select All</button>
+      <button id="settings-faction-none" style="${btnStyle("#2a2518", "#5a5040", "#c8c0a0", "#9a8860")}">Deselect All</button>
     </div>
   </div>`;
-  html += `<div style="margin-bottom:1rem;padding:0.75rem 1rem;background:#0a0c0e;border:1px solid #1a2030;border-radius:2px;">`;
-  html += `<div style="font-size:10px;letter-spacing:0.15em;color:#2a3a5a;text-transform:uppercase;margin-bottom:0.5rem;">Homebrew / Custom</div>`;
+  html += `<div class="ss-sub ss-sub-factions">`;
+  html += `<div class="ss-sub-label ss-sub-label-blue">Homebrew / Custom</div>`;
   html += `<div style="display:flex;gap:6px;margin-bottom:${settingsCustomFactionTypes.length ? "0.5rem" : "0"};">
     <input id="settings-custom-faction-input" class="edit-input" placeholder="Add custom faction type..." style="flex:1;font-size:13px;">
-    <button id="settings-custom-faction-add" style="background:#0e1828;border:1px solid #1e2a3e;border-radius:2px;color:#5a7a9a;font-family:inherit;font-size:13px;padding:4px 14px;cursor:pointer;">+ Add</button>
+    <button id="settings-custom-faction-add" style="background:${fp.addBg};border:1px solid ${fp.addBr};border-radius:2px;color:${fp.addCl};font-family:inherit;font-size:13px;padding:4px 14px;cursor:pointer;">+ Add</button>
   </div>`;
   if (settingsCustomFactionTypes.length) {
     html += `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:0.5rem;">`;
     for (const type of settingsCustomFactionTypes) {
-      html += `<span style="display:inline-flex;align-items:center;gap:4px;background:#0e1520;border:1px solid #1e3050;border-radius:2px;padding:4px 8px 4px 10px;font-size:13px;color:#7090c0;">
-        ${esc(type)}<button data-remove-custom-faction="${esc(type)}" style="background:none;border:none;color:#3a5070;cursor:pointer;font-size:15px;line-height:1;padding:0 0 0 2px;" title="Remove">×</button>
+      html += `<span style="display:inline-flex;align-items:center;gap:4px;background:${fp.tagBg};border:1px solid ${fp.tagBr};border-radius:2px;padding:4px 8px 4px 10px;font-size:13px;color:${fp.tagCl};">
+        ${esc(type)}<button data-remove-custom-faction="${esc(type)}" style="background:none;border:none;color:${fp.tagCl};opacity:0.6;cursor:pointer;font-size:15px;line-height:1;padding:0 0 0 2px;" title="Remove">×</button>
       </span>`;
     }
     html += `</div>`;
@@ -2814,22 +2853,22 @@ function renderSettingsPage(main) {
   html += `<div style="display:flex;flex-wrap:wrap;gap:6px;">`;
   for (const type of allFactionTypes) {
     const checked = settingsAllowedFactionTypes.includes(type);
-    html += `<label style="display:flex;align-items:center;gap:6px;background:${checked ? "#0e1520" : "#0d0f14"};border:1px solid ${checked ? "#1e3050" : "#1e1c14"};border-radius:2px;padding:5px 10px;cursor:pointer;font-size:13px;color:${checked ? "#7090c0" : "#5a5040"};transition:all 0.15s;">
+    html += `<label style="display:flex;align-items:center;gap:6px;background:${checked ? fp.chBg : fp.unBg};border:1px solid ${checked ? fp.chBr : fp.unBr};border-radius:2px;padding:5px 10px;cursor:pointer;font-size:13px;color:${checked ? fp.chCl : fp.unCl};transition:all 0.15s;">
       <input type="checkbox" data-faction-type-check="${esc(type)}" style="accent-color:#5a8ab0;cursor:pointer;"${checked ? " checked" : ""}> ${esc(type)}
     </label>`;
   }
   html += `</div></div>`;
 
   // ── Data Export / Import ───────────────────────────────────────────────────
-  html += `<div style="background:#0e0c0a;border:1px solid #2a2010;border-left:3px solid #7a5a30;border-radius:2px;padding:1.25rem 1.5rem;margin-bottom:1.5rem;">`;
+  html += `<div class="settings-section ss-data">`;
   html += `<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
     <div>
-      <div style="font-size:14px;color:#d4c9a8;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px;">Data</div>
-      <div style="font-size:12px;color:#5a5040;font-style:italic;">Export all campaign data to a JSON file, or restore from a previous export</div>
+      <div class="settings-section-title">Data</div>
+      <div class="settings-section-sub">Export all campaign data to a JSON file, or restore from a previous export</div>
     </div>
     <div style="display:flex;gap:8px;flex-shrink:0;align-items:center;">
-      <button id="settings-export-data" style="background:#1a1408;border:1px solid #3a2a10;border-radius:2px;color:#c8a060;font-family:inherit;font-size:12px;letter-spacing:0.08em;padding:6px 14px;cursor:pointer;">Download JSON</button>
-      <label id="settings-import-label" style="background:#0e0c0a;border:1px solid #2a2010;border-radius:2px;color:#7a6040;font-family:inherit;font-size:12px;letter-spacing:0.08em;padding:6px 14px;cursor:pointer;display:inline-block;">
+      <button id="settings-export-data" style="background:${dp.expBg};border:1px solid ${dp.expBr};border-radius:2px;color:${dp.expCl};font-family:inherit;font-size:12px;letter-spacing:0.08em;padding:6px 14px;cursor:pointer;">Download JSON</button>
+      <label id="settings-import-label" style="background:${dp.impBg};border:1px solid ${dp.impBr};border-radius:2px;color:${dp.impCl};font-family:inherit;font-size:12px;letter-spacing:0.08em;padding:6px 14px;cursor:pointer;display:inline-block;">
         Upload JSON
         <input type="file" id="settings-import-file" accept=".json" style="display:none;">
       </label>
@@ -3002,6 +3041,12 @@ function renderSettingsPage(main) {
     };
     reader.readAsText(file);
   };
+
+  document.getElementById("btn-theme-toggle").onclick = () => {
+    document.body.classList.toggle("light-mode");
+    lsSet("theme", document.body.classList.contains("light-mode") ? "light" : "dark");
+    render();
+  };
 }
 
 // ── Home Page ──────────────────────────────────────────────────────────────
@@ -3018,10 +3063,10 @@ function renderHomePage(main) {
   const favPcs = pcLinks.filter(p => p.favorited);
 
   function makeRow(label, meta, onclickStr, favBtn) {
-    return `<div role="button" tabindex="0" onclick="${onclickStr}" style="padding:7px 12px;border-bottom:1px solid #131210;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:6px" onmouseover="this.style.background='#161410'" onmouseout="this.style.background=''">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;color:#a09070;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${label}</div>
-        ${meta ? `<div style="font-size:11px;color:#5a5040;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${meta}</div>` : ""}
+    return `<div role="button" tabindex="0" onclick="${onclickStr}" class="fav-row">
+      <div class="fav-row-body">
+        <div class="fav-row-label">${label}</div>
+        ${meta ? `<div class="fav-row-meta">${meta}</div>` : ""}
       </div>
       ${favBtn}
     </div>`;
@@ -3030,11 +3075,11 @@ function renderHomePage(main) {
   function makePanel(title, color, rows) {
     const body = rows.length
       ? rows.join("")
-      : `<div style="padding:18px 12px;text-align:center;color:#252010;font-size:12px;font-style:italic;">None bookmarked</div>`;
-    return `<div style="background:#0b0d11;border:1px solid #1e1c14;border-radius:3px;overflow:hidden;display:flex;flex-direction:column">
-      <div style="padding:8px 12px;border-bottom:1px solid #1e1c14;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      : `<div class="fav-empty">None bookmarked</div>`;
+    return `<div class="fav-panel">
+      <div class="fav-panel-header">
         <span style="font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:${color}">${title}</span>
-        ${rows.length ? `<span style="font-size:11px;color:#3a3020">${rows.length}</span>` : ""}
+        ${rows.length ? `<span class="fav-panel-count">${rows.length}</span>` : ""}
       </div>
       <div>${body}</div>
     </div>`;
@@ -3079,15 +3124,15 @@ function renderHomePage(main) {
   });
 
   let html = `<div style="max-width:1200px;margin:0 auto;">`;
-  html += `<h2 style="font-size:22px;font-weight:normal;color:#c8a96e;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.25rem;">Favorites</h2>`;
-  html += `<p style="font-size:13px;color:#5a5040;font-style:italic;margin-bottom:1.5rem;">Your bookmarked locations, items, and characters</p>`;
-  html += `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px">`;
+  html += `<h2 class="page-title">Favorites</h2>`;
+  html += `<p class="page-subtitle-sm" style="margin-bottom:1.5rem;">Your bookmarked locations, items, and characters</p>`;
+  html += `<div class="fav-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px">`;
   html += makePanel("Locations", "#c8a96e", locationRows);
   html += makePanel("Magic Items", "#b07a9e", magicRows);
   html += makePanel("Factions", "#8090c0", factionRows);
   html += makePanel("Stores", "#a09070", storeRows);
   html += `</div>`;
-  html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">`;
+  html += `<div class="fav-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">`;
   html += makePanel("Ships", "#60a0c0", shipRows);
   html += makePanel("NPCs", "#9a8e6e", npcRows);
   html += makePanel("Player Characters", "#88c0a0", pcRows);
@@ -3183,25 +3228,150 @@ function navToFavPc(id) {
   render();
 }
 
+// ── Global search ─────────────────────────────────────────────────────────
+function getSearchResults(q) {
+  if (!q) return {};
+  const lower = q.toLowerCase();
+  const res = { locations: [], magicItems: [], factions: [], stores: [], ships: [], npcs: [], pcs: [] };
+  for (const loc of allLocations())
+    if (loc.name.toLowerCase().includes(lower))
+      res.locations.push({ label: loc.name, meta: loc.size || loc.kind, id: loc.id });
+  for (const item of magicItems)
+    if (item.name.toLowerCase().includes(lower))
+      res.magicItems.push({ label: item.name, meta: [item.type, item.rarity].filter(Boolean).join(" · "), id: item.id });
+  for (const f of factionLinks) {
+    const name = f.label || f.name;
+    if (name.toLowerCase().includes(lower))
+      res.factions.push({ label: name, meta: f.type || "Faction", id: f.id });
+  }
+  for (const s of storeLinks) {
+    const name = s.label || s.name;
+    if (name.toLowerCase().includes(lower))
+      res.stores.push({ label: name, meta: "Store", id: s.id });
+  }
+  for (const s of shipLinks)
+    if (s.name.toLowerCase().includes(lower))
+      res.ships.push({ label: s.name, meta: s.type || "Ship", id: s.id });
+  for (const n of npcLinks)
+    if (n.name.toLowerCase().includes(lower))
+      res.npcs.push({ label: n.name, meta: [n.race, n.profession].filter(Boolean).join(" · "), id: n.id });
+  for (const p of pcLinks)
+    if (p.name.toLowerCase().includes(lower))
+      res.pcs.push({ label: p.name, meta: [p.race, p.class].filter(Boolean).join(" · "), id: p.id });
+  return res;
+}
+
+function renderSearchDropdown(q) {
+  const dropdown = document.getElementById("search-dropdown");
+  if (!dropdown) return;
+  if (!q) { dropdown.classList.add("hidden"); return; }
+  const res = getSearchResults(q);
+  const cats = [
+    { key: "locations", label: "Locations", type: "location" },
+    { key: "magicItems", label: "Magic Items", type: "magicItem" },
+    { key: "factions", label: "Factions", type: "faction" },
+    { key: "stores", label: "Stores", type: "store" },
+    { key: "ships", label: "Ships", type: "ship" },
+    { key: "npcs", label: "NPCs", type: "npc" },
+    { key: "pcs", label: "Player Characters", type: "pc" },
+  ];
+  let html = "";
+  let total = 0;
+  for (const cat of cats) {
+    const items = res[cat.key] || [];
+    if (!items.length) continue;
+    total += items.length;
+    html += `<div class="search-group-label">${cat.label}</div>`;
+    for (const item of items.slice(0, 5))
+      html += `<div class="search-result" data-rtype="${cat.type}" data-rid="${esc(String(item.id))}">
+        <span class="search-result-label">${esc(item.label)}</span>
+        ${item.meta ? `<span class="search-result-meta">${esc(item.meta)}</span>` : ""}
+      </div>`;
+  }
+  if (!total) html = `<div class="search-empty">No results for "${esc(q)}"</div>`;
+  dropdown.innerHTML = html;
+  dropdown.classList.remove("hidden");
+}
+
+function handleSearchInput(q) {
+  currentSearchQuery = q;
+  renderSearchDropdown(q);
+}
+
+function navigateToSearchResult(type, id) {
+  saveCurrentPageState();
+  currentSearchQuery = "";
+  if (type === "location") navToFavLocation(id);
+  else if (type === "magicItem") navToFavMagicItem(id);
+  else if (type === "faction") navToFavFaction(id);
+  else if (type === "store") navToFavStore(id);
+  else if (type === "ship") navToFavShip(id);
+  else if (type === "npc") navToFavNpc(id);
+  else if (type === "pc") navToFavPc(id);
+}
+
 // ── Init ───────────────────────────────────────────────────────────────────
 document.getElementById("btn-add-location").onclick = () => {
   document.getElementById("popup-overlay").classList.remove("hidden");
 };
 document.getElementById("popup-overlay").onclick = closePopup;
 
+// Per-page saved state — preserves selection when navigating away and back
+const pageState = {};
+
+function saveCurrentPageState() {
+  switch (currentPage) {
+    case "locations": pageState.locations = { selected, selectedType, currentTab, detailItem }; break;
+    case "magicItems": pageState.magicItems = { selectedMagicItemId }; break;
+    case "factions": pageState.factions = { factionEditorState }; break;
+    case "stores": pageState.stores = { storeEditorState }; break;
+    case "ships": pageState.ships = { shipEditorState }; break;
+    case "npcs": pageState.npcs = { npcEditorState }; break;
+    case "pcs": pageState.pcs = { pcEditorState }; break;
+  }
+}
+
+function restorePageState(page) {
+  selectedMagicItemId = null;
+  factionEditorState = null;
+  storeEditorState = null;
+  shipEditorState = null;
+  npcEditorState = null;
+  pcEditorState = null;
+  currentTab = "Overview";
+  detailItem = null;
+
+  const saved = pageState[page];
+  if (page === "locations") {
+    if (saved) {
+      selected = saved.selected;
+      selectedType = saved.selectedType;
+      currentTab = saved.currentTab;
+      detailItem = saved.detailItem;
+    } else {
+      const sizeOrder = { "Large City": 0, "Moderate Town/Village": 1, "Small Village": 2 };
+      selected = [...CITIES].sort((a, b) => {
+        const ao = sizeOrder[a.size] ?? 3, bo = sizeOrder[b.size] ?? 3;
+        return ao !== bo ? ao - bo : a.id - b.id;
+      })[0] || allLocations()[0];
+      selectedType = "city";
+    }
+  } else if (saved) {
+    if (page === "magicItems") selectedMagicItemId = saved.selectedMagicItemId;
+    else if (page === "factions") factionEditorState = saved.factionEditorState;
+    else if (page === "stores") storeEditorState = saved.storeEditorState;
+    else if (page === "ships") shipEditorState = saved.shipEditorState;
+    else if (page === "npcs") npcEditorState = saved.npcEditorState;
+    else if (page === "pcs") pcEditorState = saved.pcEditorState;
+  }
+}
+
 // Hotbar events
 document.querySelectorAll(".hotbar-btn").forEach(btn => {
   btn.onclick = () => {
+    saveCurrentPageState();
     currentPage = btn.dataset.page;
-    selected = CITIES[0]; // Reset selection
-    selectedMagicItemId = null;
-    factionEditorState = null;
-    storeEditorState = null;
-    shipEditorState = null;
-    npcEditorState = null;
-    pcEditorState = null;
-    currentTab = "Overview";
-    detailItem = null;
+    restorePageState(currentPage);
     render();
   };
 });
@@ -3214,25 +3384,45 @@ function esc(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
+// ── Theme init ────────────────────────────────────────────────────────────
+if (lsGet("theme", "dark") === "light") document.body.classList.add("light-mode");
+
+// ── Search event delegation ────────────────────────────────────────────────
+document.getElementById("header").addEventListener("click", e => {
+  const result = e.target.closest(".search-result");
+  if (result) navigateToSearchResult(result.dataset.rtype, result.dataset.rid);
+});
+document.addEventListener("click", e => {
+  if (!e.target.closest(".header-search-wrap")) {
+    const dd = document.getElementById("search-dropdown");
+    if (dd) dd.classList.add("hidden");
+  }
+});
+
 // ── Mobile sidebar toggle ─────────────────────────────────────────────────
 (function () {
-  const toggle = document.getElementById("mobile-menu-toggle");
   const sidebar = document.getElementById("sidebar");
   const backdrop = document.getElementById("sidebar-backdrop");
+  const hotbar = document.getElementById("hotbar");
 
   function openSidebar() {
     sidebar.classList.add("sidebar-open");
     backdrop.classList.add("active");
+    hotbar.classList.add("hotbar-disabled");
   }
   function closeSidebar() {
     sidebar.classList.remove("sidebar-open");
     backdrop.classList.remove("active");
+    hotbar.classList.remove("hotbar-disabled");
   }
 
-  if (toggle) toggle.onclick = () =>
-    sidebar.classList.contains("sidebar-open") ? closeSidebar() : openSidebar();
+  // Delegate to header so it survives renderHeader() replacing innerHTML
+  document.getElementById("header").addEventListener("click", e => {
+    if (e.target.closest("#mobile-menu-toggle"))
+      sidebar.classList.contains("sidebar-open") ? closeSidebar() : openSidebar();
+  });
 
-  if (backdrop) backdrop.onclick = closeSidebar;
+  backdrop.onclick = closeSidebar;
 
   // Close sidebar when a location is selected
   sidebar.addEventListener("click", e => {
