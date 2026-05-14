@@ -471,6 +471,7 @@ body.light-mode .section-label { color: #9a8860; }
 body.light-mode .lore-card { background: #f0ead8; border-color: #d4c8a0; border-left-color: #c8b890; }
 body.light-mode .lore-card:hover { border-left-color: #7a6030; }
 body.light-mode .lore-card p { color: #5a4020; }
+body.light-mode .lore-card-editing { background: #f8f4ec; border-color: #c8b890; border-left-color: #7a6030; }
 body.light-mode .note-textarea { background: #f8f4ec; border-color: #c8b890; color: #2a2010; }
 body.light-mode .note-textarea:focus { border-color: #8a7040; }
 body.light-mode .edit-textarea { background: #f8f4ec; border-color: #c8b890; color: #2a2010; }
@@ -542,6 +543,16 @@ body.light-mode .ss-sub-factions { background: #e8eaf0; border-color: #c0c8d4; }
 body.light-mode .ss-sub-label-green { color: #5a8a5a; }
 body.light-mode .ss-sub-label-gold  { color: #8a6a30; }
 body.light-mode .ss-sub-label-blue  { color: #4a5a8a; }
+body.light-mode .editor-header {
+  background: #f0ead8 !important;
+  border-top-color: #d4c8a0 !important;
+  border-right-color: #d4c8a0 !important;
+  border-bottom-color: #d4c8a0 !important;
+}
+
+/* ── PC editor responsive grids ─────────────────────────────────────────── */
+.pc-combat-grid   { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.pc-passives-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 
 /* ── Mobile menu toggle (hidden on desktop/tablet) ──────────────────────── */
 .mobile-menu-toggle {
@@ -602,4 +613,8 @@ body.light-mode .ss-sub-label-blue  { color: #4a5a8a; }
 
   /* Hotbar disabled while sidebar is open */
   .hotbar-disabled { pointer-events: none; opacity: 0.4; }
+
+  /* PC editor — fewer columns so labels don't wrap */
+  .pc-combat-grid   { grid-template-columns: repeat(3, 1fr); }
+  .pc-passives-grid { grid-template-columns: 1fr; }
 }

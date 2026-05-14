@@ -71,6 +71,10 @@ function savePcLinks() { lsSet("pcLinks", pcLinks); }
 let pcEditorState = null;
 let cityFavorites = lsGet("cityFavorites", {}); // { [cityId]: true }
 function saveCityFavorites() { lsSet("cityFavorites", cityFavorites); }
+let cityTradeOverrides = lsGet("cityTradeOverrides", {}); // { [cityId]: { exports: [...], imports: [...] } }
+function getCityExports(cityId) { const o = cityTradeOverrides[String(cityId)]; return o ? o.exports : (getLocationById(cityId)?.exports || []); }
+function getCityImports(cityId) { const o = cityTradeOverrides[String(cityId)]; return o ? o.imports : (getLocationById(cityId)?.imports || []); }
+function saveCityTrade(cityId, exports, imports) { cityTradeOverrides[String(cityId)] = { exports, imports }; lsSet("cityTradeOverrides", cityTradeOverrides); }
 let settingsAllowedRaces = lsGet("settingsAllowedRaces", ALL_RACE_NAMES);
 let settingsCustomRaces = lsGet("settingsCustomRaces", []);
 let settingsAllowedStoreTypes = lsGet("settingsAllowedStoreTypes", getAllBuiltinStoreTypes());
@@ -715,6 +719,8 @@ function renderMain() {
         if (f) { detailItem = { type: "faction", item: f }; detailIdx = 0; render(); }
       };
     });
+    // Bind trade (exports/imports on Overview tab)
+    bindTradeEvents(main);
     // Bind lore
     bindLoreEvents(main);
   } else if (currentPage === "magicItems") {
@@ -746,20 +752,34 @@ function renderMain() {
 // ── Overview tab ────────────────────────────────────────────────────────────
 function renderOverview() {
   const s = selected;
-  const totalShops = s.shops.reduce((a, x) => a + x.count, 0);
-  const totalFactions = s.factions.reduce((a, x) => a + x.count, 0);
+  const totalShops = getCityShops(s.id).reduce((a, x) => a + x.count, 0);
+  const totalFactions = getCityFactions(s.id).reduce((a, x) => a + x.count, 0);
+  const exports = getCityExports(s.id);
+  const imports = getCityImports(s.id);
+  function tradeList(items, arrow, type) {
+    const rows = items.map((e, i) =>
+      `<div class="list-item" style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+        <span>${arrow} ${esc(e)}</span>
+        <button data-trade-rm="${type}" data-trade-idx="${i}" class="btn-delete" title="Remove" style="padding:1px 5px;font-size:10px;flex-shrink:0;">✕</button>
+      </div>`
+    ).join("");
+    return rows + `<div style="display:flex;gap:6px;margin-top:8px;">
+      <input class="edit-input" data-trade-input="${type}" placeholder="Add ${type}…" style="flex:1;font-size:12px;">
+      <button class="btn-sm" data-trade-add="${type}" style="font-size:12px;padding:4px 10px;">+</button>
+    </div>`;
+  }
   return `
     <p class="flavor-quote">"${esc(s.flavor)}"</p>
     <div class="stat-grid">
       ${statBox("Population", s.population.toLocaleString())}
-      ${statBox("Exports", s.exports.length + " goods")}
-      ${statBox("Imports", s.imports.length + " goods")}
+      ${statBox("Exports", exports.length + " goods")}
+      ${statBox("Imports", imports.length + " goods")}
       ${statBox("Total Shops", totalShops)}
       ${statBox("Factions", totalFactions)}
     </div>
     <div class="box-grid">
-      <div class="box"><p class="box-label">Exports</p>${s.exports.map(e => `<div class="list-item">↑ ${esc(e)}</div>`).join("")}</div>
-      <div class="box"><p class="box-label">Imports</p>${s.imports.map(e => `<div class="list-item">↓ ${esc(e)}</div>`).join("")}</div>
+      <div class="box"><p class="box-label">Exports</p>${tradeList(exports, "↑", "export")}</div>
+      <div class="box"><p class="box-label">Imports</p>${tradeList(imports, "↓", "import")}</div>
     </div>`;
 }
 
@@ -846,7 +866,7 @@ function renderFactionEditor(main) {
   const faction = factionEditorState;
   const title = faction.label || "New Faction";
   let html = `<button class="back-btn" id="btn-faction-back">← Back to Factions</button>`;
-  html += `<div class="detail-header" style="background:#11101a;border:1px solid #1e1c14;border-left:3px solid #8090c0">
+  html += `<div class="detail-header editor-header" style="background:#11101a;border:1px solid #1e1c14;border-left:3px solid #8090c0">
       <div>
         <div class="detail-label">Faction</div>
         <div class="detail-title">${esc(title)}</div>
@@ -872,13 +892,13 @@ function renderFactionEditor(main) {
     <div id="faction-assignments">
       <div class="sf-row sf-header">
         <span class="sf-name">City</span>
-        <span class="sf-count"></span>
         <span class="sf-type">Presence</span>
+        <span style="flex-shrink:0;min-width:34px;"></span>
       </div>`;
   faction.assignments.forEach((assignment, index) => {
     const presenceOptions = [...new Set(["High Presence","Medium Presence","Low Presence","Establishing Foothold", assignment.type].filter(Boolean))];
     html += `<div class="sf-row" data-assignment-row>
-      <select class="edit-input" data-city-select>
+      <select class="edit-input" data-city-select style="flex:1">
         <option value="" disabled${!assignment.cityId ? " selected" : ""}>Select City</option>
         <option value="Always Moving"${assignment.cityId === "Always Moving" ? " selected" : ""}>Always Moving</option>
         <option value="Wilderness"${assignment.cityId === "Wilderness" ? " selected" : ""}>Wilderness</option>
@@ -1190,7 +1210,7 @@ function renderStoreEditor(main) {
   const title = store.label || "New Store";
   const knownNames = [...new Set([...getKnownStoreNames(), store.type])];
   let html = `<button class="back-btn" id="btn-store-back">← Back to Stores</button>`;
-  html += `<div class="detail-header" style="background:#11101a;border:1px solid #1e1c14;border-left:3px solid #8090c0">
+  html += `<div class="detail-header editor-header" style="background:#11101a;border:1px solid #1e1c14;border-left:3px solid #8090c0">
       <div>
         <div class="detail-label">Store</div>
         <div class="detail-title">${esc(title)}</div>
@@ -1372,7 +1392,7 @@ function renderShipEditor(main) {
   const title = ship.name || "New Ship";
   const shipTypes = ["Rowboat/Raft", "Sailing Ship", "Sloop", "Cutter", "Caravel", "Schooner", "Ketch", "Brigantine", "Warship", "Galleon", "Man o' War"];
   let html = `<button class="back-btn" id="btn-ship-back">← Back to Ships</button>`;
-  html += `<div class="detail-header" style="background:#11101a;border:1px solid #1e1c14;border-left:3px solid #8090c0">
+  html += `<div class="detail-header editor-header" style="background:#11101a;border:1px solid #1e1c14;border-left:3px solid #8090c0">
       <div>
         <div class="detail-label">Ship</div>
         <div class="detail-title">${esc(title)}</div>
@@ -1549,6 +1569,41 @@ function renderLoreTab() {
   return html;
 }
 
+function bindTradeEvents(main) {
+  const id = selected.id;
+  main.querySelectorAll("[data-trade-rm]").forEach(btn => {
+    btn.onclick = () => {
+      const type = btn.dataset.tradeRm;
+      const idx = parseInt(btn.dataset.tradeIdx);
+      const exps = [...getCityExports(id)];
+      const imps = [...getCityImports(id)];
+      if (type === "export") exps.splice(idx, 1);
+      else imps.splice(idx, 1);
+      saveCityTrade(id, exps, imps);
+      renderMain();
+    };
+  });
+  main.querySelectorAll("[data-trade-add]").forEach(btn => {
+    btn.onclick = () => {
+      const type = btn.dataset.tradeAdd;
+      const input = main.querySelector(`[data-trade-input="${type}"]`);
+      const val = input?.value.trim();
+      if (!val) return;
+      const exps = [...getCityExports(id)];
+      const imps = [...getCityImports(id)];
+      if (type === "export") exps.push(val);
+      else imps.push(val);
+      saveCityTrade(id, exps, imps);
+      renderMain();
+    };
+  });
+  main.querySelectorAll("[data-trade-input]").forEach(inp => {
+    inp.onkeydown = e => {
+      if (e.key === "Enter") main.querySelector(`[data-trade-add="${inp.dataset.tradeInput}"]`)?.click();
+    };
+  });
+}
+
 function bindLoreEvents(main) {
   main.querySelectorAll("[data-lore-edit]").forEach(btn => {
     btn.onclick = () => {
@@ -1619,7 +1674,7 @@ function renderDetailPage(main) {
 
   let html = `<button class="back-btn" id="btn-back">← Back to ${type === "shop" ? "Shops" : "Factions"}</button>`;
   // Header card
-  html += `<div class="detail-header" style="background:${accentBg};border:1px solid ${accentBorder};border-left:3px solid ${accentColor}">
+  html += `<div class="detail-header editor-header" style="background:${accentBg};border:1px solid ${accentBorder};border-left:3px solid ${accentColor}">
     <div>
       <div class="detail-label" style="color:${accentColor}">${esc(selected.name)} · ${type === "shop" ? "Shop" : "Faction"}</div>
       <div class="detail-title" style="color:${accentColor}">${esc(item.name)}</div>
@@ -2099,7 +2154,7 @@ function renderMagicItemsPage(main) {
 
 function renderMagicItemEditor(main, item) {
   let html = `<button class="back-btn" id="btn-magitem-back">← Back to Magic Items</button>`;
-  html += `<div class="detail-header" style="background:#11101a;border:1px solid #1e1932;border-left:3px solid #a07ed8">
+  html += `<div class="detail-header editor-header" style="background:#11101a;border:1px solid #1e1932;border-left:3px solid #a07ed8">
       <div>
         <div class="detail-label">Magic Item</div>
         <div class="detail-title">${esc(item.name)}</div>
@@ -2274,7 +2329,7 @@ function renderNpcEditor(main) {
   }
 
   let html = `<button class="back-btn" id="btn-npc-back">← Back to NPCs</button>`;
-  html += `<div class="detail-header" style="background:#0e1214;border:1px solid #1a2a1a;border-left:3px solid #5db87a">
+  html += `<div class="detail-header editor-header" style="background:#0e1214;border:1px solid #1a2a1a;border-left:3px solid #5db87a">
     <div>
       <div class="detail-label">NPC</div>
       <div class="detail-title">${esc(npc.name)}</div>
@@ -2524,7 +2579,7 @@ function renderPcEditor(main) {
 
   let html = `<button class="back-btn" id="btn-pc-back">← Back to Player Characters</button>`;
   const classLevel = [pc.class, pc.level ? `Lv. ${pc.level}` : ""].filter(Boolean).join(" — ");
-  html += `<div class="detail-header" style="background:#16140e;border:1px solid #3a3020;margin-bottom:1.5rem;">
+  html += `<div class="detail-header editor-header" style="background:#16140e;border:1px solid #3a3020;margin-bottom:1.5rem;">
     <div>
       <div class="detail-label">Player Character</div>
       <div class="detail-title" style="color:#c8a96e">${esc(pc.name || "New Character")}</div>
@@ -2565,7 +2620,7 @@ function renderPcEditor(main) {
 
   html += `<div class="box" style="margin-bottom:1rem;">
     <p class="box-label">Combat</p>
-    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;">
+    <div class="pc-combat-grid">
       <div><div class="section-label">Current HP</div><input class="edit-input" id="pc-current-health" type="number" style="width:100%" value="${pc.currentHealth ?? ""}"></div>
       <div><div class="section-label">Max HP</div><input class="edit-input" id="pc-total-health" type="number" style="width:100%" value="${pc.totalHealth ?? ""}"></div>
       <div><div class="section-label">Armor Class</div><input class="edit-input" id="pc-ac" type="number" style="width:100%" value="${pc.ac ?? ""}"></div>
@@ -2592,7 +2647,7 @@ function renderPcEditor(main) {
 
   html += `<div class="box" style="margin-bottom:1rem;">
     <p class="box-label">Passives</p>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+    <div class="pc-passives-grid">
       <div><div class="section-label">Passive Perception</div><input class="edit-input" id="pc-passive-perception" type="number" style="width:100%" value="${pc.passivePerception ?? ""}"></div>
       <div><div class="section-label">Passive Insight</div><input class="edit-input" id="pc-passive-insight" type="number" style="width:100%" value="${pc.passiveInsight ?? ""}"></div>
       <div><div class="section-label">Passive Investigation</div><input class="edit-input" id="pc-passive-investigation" type="number" style="width:100%" value="${pc.passiveInvestigation ?? ""}"></div>
@@ -2733,7 +2788,7 @@ function renderSettingsPage(main) {
         <div class="settings-section-sub">Switch between dark and light theme</div>
       </div>
       <button id="btn-theme-toggle" style="background:${lm ? "#e8e0cc" : "#1a180e"};border:1px solid ${lm ? "#c8b890" : "#3a3020"};border-radius:3px;color:${lm ? "#7a5e14" : "#c8a96e"};font-family:inherit;font-size:13px;letter-spacing:0.08em;padding:6px 18px;cursor:pointer;">
-        ${lm ? "☀ Light — click for Dark" : "☾ Dark — click for Light"}
+        ${lm ? "☀ Light" : "☾ Dark"}
       </button>
     </div>
   </div>`;
