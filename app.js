@@ -5,6 +5,25 @@ const ALL_DND_RACES = [
 ];
 const ALL_RACE_NAMES = ALL_DND_RACES.flatMap(g => g.races);
 
+// ── D&D Classes ──────────────────────────────────────────────────────────────
+const ALL_DND_CLASSES = [
+  { name: "Artificer",  subclasses: ["Alchemist", "Armorer", "Artillerist", "Battle Smith"] },
+  { name: "Barbarian",  subclasses: ["Path of the Ancestral Guardian", "Path of the Battlerager", "Path of the Beast", "Path of the Berserker", "Path of the Giant", "Path of the Storm Herald", "Path of the Totem Warrior", "Path of Wild Magic", "Path of the Zealot"] },
+  { name: "Bard",       subclasses: ["College of Creation", "College of Eloquence", "College of Glamour", "College of Lore", "College of Spirits", "College of Swords", "College of Valor", "College of Whispers"] },
+  { name: "Cleric",     subclasses: ["Arcana Domain", "Death Domain", "Forge Domain", "Grave Domain", "Knowledge Domain", "Life Domain", "Light Domain", "Nature Domain", "Order Domain", "Peace Domain", "Tempest Domain", "Trickery Domain", "Twilight Domain", "War Domain"] },
+  { name: "Druid",      subclasses: ["Circle of Dreams", "Circle of the Land", "Circle of the Moon", "Circle of the Shepherd", "Circle of Spores", "Circle of Stars", "Circle of Wildfire"] },
+  { name: "Fighter",    subclasses: ["Arcane Archer", "Battle Master", "Cavalier", "Champion", "Echo Knight", "Eldritch Knight", "Psi Warrior", "Rune Knight", "Samurai"] },
+  { name: "Monk",       subclasses: ["Way of the Astral Self", "Way of the Drunken Master", "Way of the Four Elements", "Way of Mercy", "Way of the Open Hand", "Way of Shadow", "Way of the Sun Soul", "Way of the Kensei", "Way of the Long Death"] },
+  { name: "Paladin",    subclasses: ["Oath of Conquest", "Oath of the Crown", "Oath of Devotion", "Oath of Glory", "Oath of the Ancients", "Oath of Redemption", "Oath of Vengeance", "Oath of the Watchers", "Oathbreaker"] },
+  { name: "Ranger",     subclasses: ["Beast Master", "Fey Wanderer", "Gloom Stalker", "Horizon Walker", "Hunter", "Monster Slayer", "Swarmkeeper"] },
+  { name: "Rogue",      subclasses: ["Arcane Trickster", "Assassin", "Inquisitive", "Mastermind", "Phantom", "Scout", "Soulknife", "Swashbuckler", "Thief"] },
+  { name: "Sorcerer",   subclasses: ["Aberrant Mind", "Clockwork Soul", "Divine Soul", "Draconic Bloodline", "Lunar Sorcery", "Shadow Magic", "Storm Sorcery", "Wild Magic"] },
+  { name: "Warlock",    subclasses: ["The Archfey", "The Celestial", "The Fathomless", "The Fiend", "The Genie", "The Great Old One", "The Hexblade", "The Undead", "The Undying"] },
+  { name: "Wizard",     subclasses: ["School of Abjuration", "School of Bladesinging", "School of Chronurgy Magic", "School of Conjuration", "School of Divination", "School of Enchantment", "School of Evocation", "School of Graviturgy Magic", "School of Illusion", "School of Necromancy", "Order of Scribes", "School of Transmutation"] },
+];
+const ALL_CLASS_NAMES = ALL_DND_CLASSES.map(c => c.name);
+const ALL_SUBCLASS_KEYS = ALL_DND_CLASSES.flatMap(c => c.subclasses.map(s => `${c.name}|${s}`));
+
 function getAllBuiltinStoreTypes() {
   const names = new Set();
   for (const city of CITIES) for (const s of city.shops || []) names.add(s.name);
@@ -69,6 +88,12 @@ function saveNpcLinks() { lsSet("npcLinks", npcLinks); }
 let pcLinks = lsGet("pcLinks", []);
 function savePcLinks() { lsSet("pcLinks", pcLinks); }
 let pcEditorState = null;
+let combatEncounter = lsGet("combatEncounter", { active: false, round: 1, currentTurnIdx: -1, combatants: [] });
+function saveCombatEncounter() { lsSet("combatEncounter", combatEncounter); }
+let combatHistory = lsGet("combatHistory", []); // [{id, timestamp, round, combatants:[{name,type,finalHp,maxHp}]}]
+function saveCombatHistory() { lsSet("combatHistory", combatHistory); }
+let combatAddEnemyOpen = false;
+let combatShowLanding = true;
 let cityFavorites = lsGet("cityFavorites", {}); // { [cityId]: true }
 function saveCityFavorites() { lsSet("cityFavorites", cityFavorites); }
 let cityTradeOverrides = lsGet("cityTradeOverrides", {}); // { [cityId]: { exports: [...], imports: [...] } }
@@ -81,6 +106,10 @@ let settingsAllowedStoreTypes = lsGet("settingsAllowedStoreTypes", getAllBuiltin
 let settingsCustomStoreTypes = lsGet("settingsCustomStoreTypes", []);
 let settingsAllowedFactionTypes = lsGet("settingsAllowedFactionTypes", getAllBuiltinFactionTypes());
 let settingsCustomFactionTypes = lsGet("settingsCustomFactionTypes", []);
+let settingsAllowedClasses = lsGet("settingsAllowedClasses", ALL_CLASS_NAMES);
+let settingsCustomClasses = lsGet("settingsCustomClasses", []);
+let settingsAllowedSubclasses = lsGet("settingsAllowedSubclasses", ALL_SUBCLASS_KEYS);
+let settingsCustomSubclasses = lsGet("settingsCustomSubclasses", {}); // { [className]: [subclassName, ...] }
 function saveSettings() {
   lsSet("settingsAllowedRaces", settingsAllowedRaces);
   lsSet("settingsCustomRaces", settingsCustomRaces);
@@ -88,6 +117,10 @@ function saveSettings() {
   lsSet("settingsCustomStoreTypes", settingsCustomStoreTypes);
   lsSet("settingsAllowedFactionTypes", settingsAllowedFactionTypes);
   lsSet("settingsCustomFactionTypes", settingsCustomFactionTypes);
+  lsSet("settingsAllowedClasses", settingsAllowedClasses);
+  lsSet("settingsCustomClasses", settingsCustomClasses);
+  lsSet("settingsAllowedSubclasses", settingsAllowedSubclasses);
+  lsSet("settingsCustomSubclasses", settingsCustomSubclasses);
 }
 
 // ── Favorites ───────────────────────────────────────────────────────────────
@@ -409,6 +442,8 @@ function renderHeader() {
     countText = `${npcLinks.length} NPC${npcLinks.length === 1 ? "" : "s"} cataloged`;
   } else if (currentPage === "pcs") {
     countText = `${pcLinks.length} player character${pcLinks.length === 1 ? "" : "s"}`;
+  } else if (currentPage === "combat") {
+    countText = combatEncounter.active ? `Round ${combatEncounter.round} — ${combatEncounter.combatants.length} combatants` : "";
   } else if (currentPage === "home") {
     countText = "";
   } else if (currentPage === "settings") {
@@ -740,6 +775,8 @@ function renderMain() {
   } else if (currentPage === "pcs") {
     if (pcEditorState) renderPcEditor(main);
     else renderPcsPage(main);
+  } else if (currentPage === "combat") {
+    renderCombatPage(main);
   } else if (currentPage === "home") {
     renderHomePage(main);
   } else if (currentPage === "settings") {
@@ -2414,12 +2451,11 @@ function renderNpcEditor(main) {
   html += `<div class="custom-section-label" style="margin-top:1rem">Stats</div>
     <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:1rem">`;
   for (const s of statDefs) {
-    html += `<div style="background:#10100e;border:1px solid #1e1c14;border-radius:3px;padding:0.6rem 0.5rem;display:flex;flex-direction:column;align-items:center;gap:4px">
+    html += `<div class="stat-box" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:0.6rem 0.5rem">
       <div class="stat-label" style="text-align:center">${s.label}</div>
-      <input id="${s.id}" type="text" value="${npc[s.key] || 10}"
-        style="width:38px;text-align:center;font-size:20px;color:#c8a96e;background:#0a0a08;border:1px solid #2a2518;border-radius:2px;padding:1px 0;font-family:inherit;outline:none">
-      <input id="${s.id}-mod" type="text" value="${initMod(s.key)}"
-        style="width:38px;text-align:center;font-size:12px;color:#9a8e6e;background:#0a0a08;border:1px solid #2a2518;border-radius:2px;padding:1px 0;font-family:inherit;outline:none">
+      <input class="edit-input" id="${s.id}" type="text" value="${npc[s.key] || 10}"
+        style="width:38px;text-align:center;font-size:20px;padding:1px 0;">
+      <div id="${s.id}-mod" style="font-size:12px;color:#c8a96e;margin-top:2px;">${initMod(s.key)}</div>
     </div>`;
   }
   html += `</div>`;
@@ -2451,12 +2487,12 @@ function bindNpcEditorEvents() {
 
   ["str", "dex", "con", "int", "wis", "cha"].forEach(key => {
     const input = document.getElementById(`npc-${key}`);
-    const modInput = document.getElementById(`npc-${key}-mod`);
-    if (input && modInput) {
+    const modDisplay = document.getElementById(`npc-${key}-mod`);
+    if (input && modDisplay) {
       input.addEventListener("input", () => {
         const val = parseInt(input.value) || 10;
         const mod = Math.floor((val - 10) / 2);
-        modInput.value = (mod >= 0 ? "+" : "") + mod;
+        modDisplay.textContent = (mod >= 0 ? "+" : "") + mod;
       });
     }
   });
@@ -2482,7 +2518,7 @@ function bindNpcEditorEvents() {
       npcEditorState.appearance = document.getElementById("npc-appearance")?.value || "";
       ["str", "dex", "con", "int", "wis", "cha"].forEach(key => {
         npcEditorState[key] = parseInt(document.getElementById(`npc-${key}`)?.value) || 10;
-        npcEditorState[key + 'Mod'] = document.getElementById(`npc-${key}-mod`)?.value || "+0";
+        npcEditorState[key + 'Mod'] = document.getElementById(`npc-${key}-mod`)?.textContent || "+0";
       });
       npcEditorState.combat = document.getElementById("npc-combat")?.value || "";
       npcEditorState.id = npcEditorState.id || `npc-${Date.now()}`;
@@ -2607,8 +2643,19 @@ function renderPcEditor(main) {
           const placeholder = `<option value="" ${!pc.race ? "selected" : ""} disabled>Select Race</option>`;
           return placeholder + options.map(r => `<option value="${esc(r)}"${r === pc.race ? " selected" : ""}>${esc(r)}</option>`).join("");
         })()}</select></div>
-      <div><div class="section-label">Class</div><input class="edit-input" id="pc-class" style="width:100%" value="${esc(pc.class || "")}"></div>
-      <div><div class="section-label">Subclass</div><input class="edit-input" id="pc-subclass" style="width:100%" value="${esc(pc.subclass || "")}"></div>
+      <div><div class="section-label">Class</div><select class="edit-input" id="pc-class" style="width:100%" onchange="updatePcSubclassOptions(this.value)">${(() => {
+          const opts = [...settingsCustomClasses, ...(settingsAllowedClasses.length ? settingsAllowedClasses : ALL_CLASS_NAMES)];
+          if (pc.class && !opts.includes(pc.class)) opts.unshift(pc.class);
+          return `<option value=""${!pc.class ? " selected" : ""} disabled>Select Class</option>` + opts.map(c => `<option value="${esc(c)}"${c === pc.class ? " selected" : ""}>${esc(c)}</option>`).join("");
+        })()}</select></div>
+      <div><div class="section-label">Subclass</div><select class="edit-input" id="pc-subclass" style="width:100%">${(() => {
+          const classData = ALL_DND_CLASSES.find(c => c.name === pc.class);
+          const builtinSubs = classData ? classData.subclasses.filter(s => settingsAllowedSubclasses.includes(`${pc.class}|${s}`)) : [];
+          const customSubs = settingsCustomSubclasses[pc.class] || [];
+          const opts = [...customSubs, ...builtinSubs];
+          if (pc.subclass && !opts.includes(pc.subclass)) opts.unshift(pc.subclass);
+          return `<option value=""${!pc.subclass ? " selected" : ""}>Select Subclass</option>` + opts.map(s => `<option value="${esc(s)}"${s === pc.subclass ? " selected" : ""}>${esc(s)}</option>`).join("");
+        })()}</select></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;">
       <div><div class="section-label">Level</div><input class="edit-input" id="pc-level" type="number" min="1" max="20" style="width:100%" value="${pc.level || ""}"></div>
@@ -2627,6 +2674,25 @@ function renderPcEditor(main) {
       <div><div class="section-label">Speed (ft)</div><input class="edit-input" id="pc-speed" type="number" style="width:100%" value="${pc.speed ?? ""}"></div>
       <div><div class="section-label">Initiative</div><input class="edit-input" id="pc-initiative" style="width:100%" value="${esc(pc.initiative ?? "")}"></div>
       <div><div class="section-label">Prof. Bonus</div><input class="edit-input" id="pc-prof-bonus" style="width:100%" value="${esc(pc.profBonus ?? "")}"></div>
+    </div>
+    <div style="margin-top:0.75rem;display:flex;gap:2rem;align-items:flex-start;flex-wrap:wrap;">
+      ${(() => {
+        const lm = document.body.classList.contains("light-mode");
+        const emptyBorder = lm ? "#c8b890" : "#3a3020";
+        return ["success","failure"].map(type => {
+          const saves = pc[type === "success" ? "deathSaveSuccesses" : "deathSaveFailures"] || [false,false,false];
+          const label = type === "success" ? "Death Save Successes" : "Death Save Failures";
+          const filledColor = type === "success" ? "#2e6e28" : "#7a2020";
+          const borderFilled = type === "success" ? "#4a9040" : "#9a3030";
+          return `<div>
+            <div class="section-label" style="margin-bottom:6px;">${label}</div>
+            <div style="display:flex;gap:8px;">${[0,1,2].map(i => {
+              const filled = !!saves[i];
+              return `<button id="death-save-${type}-${i}" onclick="toggleDeathSave('${type}',${i})" style="width:22px;height:22px;border-radius:50%;background:${filled ? filledColor : "transparent"};border:2px solid ${filled ? borderFilled : emptyBorder};cursor:pointer;padding:0;transition:all 0.15s;" title="${label} ${i+1}"></button>`;
+            }).join("")}</div>
+          </div>`;
+        }).join("");
+      })()}
     </div>
   </div>`;
 
@@ -2671,7 +2737,10 @@ function renderPcEditor(main) {
 
   html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.5rem;">
     ${!isNew ? `<button class="btn-delete" id="btn-pc-delete">Delete Character</button>` : `<div></div>`}
-    <button class="btn-save dirty" id="btn-pc-save">Save Character</button>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span class="save-status" id="pc-save-status" style="color:#3a3020">Saved</span>
+      <button class="btn-save" id="btn-pc-save">Save Character</button>
+    </div>
   </div>`;
 
   main.innerHTML = html;
@@ -2685,9 +2754,47 @@ function updatePcModifier(key, val) {
   if (el) el.textContent = mod >= 0 ? `+${mod}` : `${mod}`;
 }
 
+function updatePcSubclassOptions(className) {
+  const sel = document.getElementById("pc-subclass");
+  if (!sel) return;
+  const classData = ALL_DND_CLASSES.find(c => c.name === className);
+  const builtinSubs = classData ? classData.subclasses.filter(s => settingsAllowedSubclasses.includes(`${className}|${s}`)) : [];
+  const customSubs = settingsCustomSubclasses[className] || [];
+  const opts = [...customSubs, ...builtinSubs];
+  sel.innerHTML = `<option value="" selected>Select Subclass</option>` + opts.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join("");
+}
+
+function toggleDeathSave(type, idx) {
+  const key = type === "success" ? "deathSaveSuccesses" : "deathSaveFailures";
+  if (!pcEditorState[key]) pcEditorState[key] = [false, false, false];
+  pcEditorState[key][idx] = !pcEditorState[key][idx];
+  const filled = pcEditorState[key][idx];
+  const filledBg = type === "success" ? "#2e6e28" : "#7a2020";
+  const filledBorder = type === "success" ? "#4a9040" : "#9a3030";
+  const emptyBorder = document.body.classList.contains("light-mode") ? "#c8b890" : "#3a3020";
+  const dot = document.getElementById(`death-save-${type}-${idx}`);
+  if (dot) {
+    dot.style.background = filled ? filledBg : "transparent";
+    dot.style.borderColor = filled ? filledBorder : emptyBorder;
+  }
+  if (pcEditorState.id) {
+    const pc = pcLinks.find(p => p.id === pcEditorState.id);
+    if (pc) { pc[key] = [...pcEditorState[key]]; savePcLinks(); }
+  }
+}
+
 function bindPcEditorEvents() {
+  const saveBtn = document.getElementById("btn-pc-save");
+  const status = document.getElementById("pc-save-status");
+  const markDirty = () => { saveBtn.classList.add("dirty"); status.style.color = "#c8a96e"; status.textContent = "Unsaved changes"; };
+
+  document.querySelectorAll("#main-content input, #main-content textarea, #main-content select").forEach(el => {
+    el.addEventListener("input", markDirty);
+    el.addEventListener("change", markDirty);
+  });
+
   document.getElementById("btn-pc-back").onclick = () => { pcEditorState = null; render(); };
-  document.getElementById("btn-pc-save").onclick = savePc;
+  saveBtn.onclick = savePc;
   const deleteBtn = document.getElementById("btn-pc-delete");
   if (deleteBtn) deleteBtn.onclick = () => {
     if (!confirm(`Delete ${pcEditorState.name || "this character"}?`)) return;
@@ -2731,12 +2838,18 @@ function savePc() {
     resistances: document.getElementById("pc-resistances")?.value.trim() || "",
     vulnerabilities: document.getElementById("pc-vulnerabilities")?.value.trim() || "",
     notes: document.getElementById("pc-notes")?.value || "",
+    deathSaveSuccesses: pcEditorState.deathSaveSuccesses || [false, false, false],
+    deathSaveFailures: pcEditorState.deathSaveFailures || [false, false, false],
   };
   const idx = pcLinks.findIndex(p => p.id === saved.id);
   if (idx >= 0) pcLinks[idx] = saved; else pcLinks.push(saved);
   savePcLinks();
   pcEditorState = saved;
-  render();
+  const saveBtn = document.getElementById("btn-pc-save");
+  const status = document.getElementById("pc-save-status");
+  if (saveBtn) saveBtn.classList.remove("dirty");
+  if (status) { status.style.color = "#5a9060"; status.textContent = "Saved!"; }
+  setTimeout(() => render(), 600);
 }
 
 function createPc() {
@@ -2749,6 +2862,8 @@ function createPc() {
     passivePerception: 10, passiveInsight: 10, passiveInvestigation: 10,
     damageImmunities: "", conditionImmunities: "", resistances: "", vulnerabilities: "",
     notes: "", favorited: false,
+    deathSaveSuccesses: [false, false, false],
+    deathSaveFailures: [false, false, false],
   };
   render();
 }
@@ -2756,6 +2871,365 @@ function createPc() {
 function openPcEditor(id) {
   const pc = pcLinks.find(p => p.id === id);
   if (pc) { pcEditorState = { ...pc }; render(); }
+}
+
+// ── Combat Page ────────────────────────────────────────────────────────────
+function startNewCombat() {
+  combatEncounter = {
+    active: true,
+    round: 1,
+    currentTurnIdx: -1,
+    combatants: pcLinks.map(pc => ({ id: pc.id, type: "pc", initiative: null })),
+  };
+  combatAddEnemyOpen = false;
+  combatShowLanding = false;
+  saveCombatEncounter();
+  render();
+}
+
+function continueCombat() {
+  combatShowLanding = false;
+  render();
+}
+
+function endCombat() {
+  if (!confirm("End this combat encounter?")) return;
+  // Snapshot to history
+  const snapshot = {
+    id: "combat-" + Date.now(),
+    timestamp: Date.now(),
+    round: combatEncounter.round,
+    combatants: combatEncounter.combatants.map(c => {
+      const pc = c.type === "pc" ? pcLinks.find(p => p.id === c.id) : null;
+      return {
+        name: c.type === "pc" ? (pc?.name || "PC") : c.name,
+        type: c.type,
+        finalHp: c.type === "pc" ? (pc?.currentHealth ?? 0) : (c.currentHealth ?? 0),
+        maxHp: c.type === "pc" ? (pc?.totalHealth ?? 0) : (c.totalHealth ?? 0),
+      };
+    }),
+  };
+  combatHistory.unshift(snapshot);
+  if (combatHistory.length > 5) combatHistory.length = 5;
+  saveCombatHistory();
+  combatEncounter = { active: false, round: 1, currentTurnIdx: -1, combatants: [] };
+  saveCombatEncounter();
+  combatAddEnemyOpen = false;
+  combatShowLanding = true;
+  render();
+}
+
+function _sortCombatants(preserveIdx) {
+  const current = preserveIdx && combatEncounter.currentTurnIdx >= 0
+    ? combatEncounter.combatants[combatEncounter.currentTurnIdx]
+    : null;
+  combatEncounter.combatants.sort((a, b) => {
+    if (a.initiative === null && b.initiative === null) return 0;
+    if (a.initiative === null) return 1;
+    if (b.initiative === null) return -1;
+    return b.initiative - a.initiative;
+  });
+  if (current) combatEncounter.currentTurnIdx = combatEncounter.combatants.indexOf(current);
+}
+
+function updateCombatantInitiative(id, val) {
+  const c = combatEncounter.combatants.find(c => c.id === id);
+  if (!c) return;
+  c.initiative = val === "" ? null : (parseInt(val) || 0);
+  _sortCombatants(true);
+  saveCombatEncounter();
+  render();
+}
+
+function updateCombatantHealth(id, type, currentHp, maxHp) {
+  if (type === "pc") {
+    const pc = pcLinks.find(p => p.id === id);
+    if (pc) {
+      if (currentHp !== null && currentHp !== undefined) pc.currentHealth = parseInt(currentHp) || 0;
+      if (maxHp !== null && maxHp !== undefined) pc.totalHealth = parseInt(maxHp) || 0;
+      savePcLinks();
+    }
+  } else {
+    const c = combatEncounter.combatants.find(c => c.id === id);
+    if (c) {
+      if (currentHp !== null && currentHp !== undefined) c.currentHealth = parseInt(currentHp) || 0;
+      if (maxHp !== null && maxHp !== undefined) c.totalHealth = parseInt(maxHp) || 0;
+      saveCombatEncounter();
+    }
+  }
+}
+
+function nextCombatTurn() {
+  const n = combatEncounter.combatants.length;
+  if (n === 0) return;
+  combatEncounter.currentTurnIdx = (combatEncounter.currentTurnIdx + 1) % n;
+  if (combatEncounter.currentTurnIdx === 0) combatEncounter.round++;
+  saveCombatEncounter();
+  render();
+}
+
+function prevCombatTurn() {
+  const n = combatEncounter.combatants.length;
+  if (n === 0) return;
+  if (combatEncounter.currentTurnIdx <= 0) {
+    combatEncounter.currentTurnIdx = n - 1;
+    if (combatEncounter.round > 1) combatEncounter.round--;
+  } else {
+    combatEncounter.currentTurnIdx--;
+  }
+  saveCombatEncounter();
+  render();
+}
+
+function deleteCombatHistory(id) {
+  combatHistory = combatHistory.filter(h => h.id !== id);
+  saveCombatHistory();
+  render();
+}
+
+function removeCombatant(id) {
+  const idx = combatEncounter.combatants.findIndex(c => c.id === id);
+  if (idx < 0) return;
+  combatEncounter.combatants.splice(idx, 1);
+  if (combatEncounter.currentTurnIdx >= combatEncounter.combatants.length)
+    combatEncounter.currentTurnIdx = Math.max(0, combatEncounter.combatants.length - 1);
+  saveCombatEncounter();
+  render();
+}
+
+function saveNewCombatEnemy() {
+  const name = document.getElementById("combat-enemy-name")?.value.trim() || "Unknown Enemy";
+  const totalHealth = parseInt(document.getElementById("combat-enemy-max-hp")?.value) || 0;
+  const currentHealth = parseInt(document.getElementById("combat-enemy-cur-hp")?.value) || totalHealth;
+  const ac = parseInt(document.getElementById("combat-enemy-ac")?.value) || 0;
+  const initRaw = document.getElementById("combat-enemy-init")?.value.trim();
+  const initVal = initRaw === "" ? null : (parseInt(initRaw) || 0);
+
+  combatEncounter.combatants.push({
+    id: "enemy-" + Date.now(), type: "enemy",
+    name, initiative: initVal, currentHealth, totalHealth, ac,
+  });
+  _sortCombatants(true);
+  saveCombatEncounter();
+  combatAddEnemyOpen = false;
+  render();
+}
+
+function renderCombatPage(main) {
+  const enc = combatEncounter;
+  const lm = document.body.classList.contains("light-mode");
+
+  // Color palette — dark vs light
+  const col = {
+    cardBg:       lm ? "#ede8d8" : "#0e0e0c",
+    pcBorder:     lm ? "#b4ccb0" : "#1e2a1a",
+    enemyBorder:  lm ? "#ccb4b4" : "#2a1818",
+    activeBorder: lm ? "#7a5e14" : "#c8a96e",
+    pcAccent:     lm ? "#7aaa74" : "#2a4a26",
+    enemyAccent:  lm ? "#aa7474" : "#4a2020",
+    activeAccent: lm ? "#7a5e14" : "#c8a96e",
+    activeShadow: lm ? "#7a5e1433" : "#c8a96e33",
+    activeName:   lm ? "#3a2a10" : "#e8ddb8",
+    inactiveName: lm ? "#5a4a2a" : "#9a8e6e",
+    label:        lm ? "#9a8860" : "#5a5040",
+    pcType:       lm ? "#3a6830" : "#4a8040",
+    enemyType:    lm ? "#7a2010" : "#803020",
+    divider:      lm ? "#d4c8a0" : "#1a1810",
+    acValue:      lm ? "#5a4a2a" : "#9a8e6e",
+    hpMax:        lm ? "#9a8860" : "#5a5040",
+    title:        lm ? "#3a2a10" : "#e8ddb8",
+    gold:         lm ? "#7a5e14" : "#c8a96e",
+    muted:        lm ? "#9a8860" : "#5a5040",
+    dashedBorder: lm ? "#c8b890" : "#2a2518",
+    removeBorder: lm ? "#cca8a8" : "#3a2020",
+    removeColor:  lm ? "#9a5050" : "#5a3030",
+  };
+
+  // ── Landing view ──────────────────────────────────────────────────────────
+  if (combatShowLanding) {
+    let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+      <div>
+        <h2 style="font-size:20px;font-weight:normal;color:${col.title};letter-spacing:0.08em;">Combat Tracker</h2>
+        <p style="font-size:13px;color:${col.muted};font-style:italic;margin-top:2px;">Track initiative, HP, and turn order for encounters</p>
+      </div>
+    </div>`;
+
+    if (enc.active) {
+      html += `<div class="box" style="margin-bottom:1.5rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+          <p class="box-label" style="margin:0;">Current Encounter — Round ${enc.round}</p>
+          <div style="display:flex;gap:8px;">
+            <button onclick="continueCombat()" class="btn-save dirty" style="font-size:12px;">Continue Encounter</button>
+            <button onclick="endCombat()" class="btn-delete" style="font-size:12px;padding:0.3rem 0.8rem;">End Combat</button>
+          </div>
+        </div>`;
+      if (enc.combatants.length === 0) {
+        html += `<div style="font-size:13px;color:${col.muted};font-style:italic;">No combatants.</div>`;
+      } else {
+        enc.combatants.forEach((c, idx) => {
+          const isActive = idx === enc.currentTurnIdx;
+          const pc = c.type === "pc" ? pcLinks.find(p => p.id === c.id) : null;
+          const name = c.type === "pc" ? (pc?.name || "PC") : c.name;
+          const initStr = c.initiative !== null ? `Init ${c.initiative}` : "Init —";
+          const typeColor = c.type === "pc" ? col.pcType : col.enemyType;
+          html += `<div style="padding:0.35rem 0.5rem;display:flex;justify-content:space-between;align-items:center;font-size:13px;border-bottom:1px solid ${col.divider};color:${isActive ? col.activeName : col.inactiveName};">
+            <span>
+              ${isActive ? `<span style="color:${col.gold};margin-right:6px;">▶</span>` : `<span style="margin-right:18px;"></span>`}
+              ${esc(name)} <span style="font-size:9px;color:${typeColor};letter-spacing:0.06em;margin-left:6px;text-transform:uppercase;">${c.type === "pc" ? "PC" : "Enemy"}</span>
+            </span>
+            <span style="color:${col.muted};font-size:12px;">${initStr}</span>
+          </div>`;
+        });
+      }
+      html += `</div>`;
+    } else {
+      html += `<div style="text-align:center;padding:2.5rem 1rem;margin-bottom:1.5rem;border:1px dashed ${col.dashedBorder};border-radius:3px;">
+        <button onclick="startNewCombat()" class="btn-save dirty">Start New Combat Encounter</button>
+        <p style="font-size:12px;color:${col.muted};margin-top:1rem;">All player characters will be added automatically</p>
+      </div>`;
+    }
+
+    if (enc.active) {
+      html += `<div style="margin-bottom:1.5rem;">
+        <button onclick="startNewCombat()" class="btn-dashed">Start New Encounter</button>
+      </div>`;
+    }
+
+    // Recent encounters
+    if (combatHistory.length > 0) {
+      html += `<div><div class="section-label" style="margin-bottom:0.75rem;">Recent Encounters</div>`;
+      combatHistory.forEach(h => {
+        const date = new Date(h.timestamp);
+        const dateStr = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+        const timeStr = date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+        const pcs = h.combatants.filter(c => c.type === "pc");
+        const enemies = h.combatants.filter(c => c.type === "enemy");
+        html += `<div class="box" style="margin-bottom:0.5rem;padding:0.75rem 1rem;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+            <span style="font-size:13px;color:${col.inactiveName};">${dateStr} at ${timeStr} <span style="color:${col.muted};font-size:11px;margin-left:6px;">${h.round} round${h.round === 1 ? "" : "s"}</span></span>
+            <button onclick="deleteCombatHistory('${esc(h.id)}')" class="btn-delete" style="font-size:11px;padding:2px 8px;">Delete</button>
+          </div>
+          <div style="display:flex;gap:1.5rem;flex-wrap:wrap;">`;
+        if (pcs.length) {
+          html += `<div><div style="font-size:9px;color:${col.pcType};letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px;">Party</div>`;
+          pcs.forEach(c => {
+            const hpColor = c.maxHp > 0 ? (c.finalHp / c.maxHp > 0.5 ? "#4a9040" : c.finalHp / c.maxHp > 0.25 ? "#b07020" : "#c05040") : col.muted;
+            html += `<div style="font-size:12px;color:${col.inactiveName};">${esc(c.name)} <span style="color:${hpColor}">${c.finalHp}/${c.maxHp} HP</span></div>`;
+          });
+          html += `</div>`;
+        }
+        if (enemies.length) {
+          html += `<div><div style="font-size:9px;color:${col.enemyType};letter-spacing:0.06em;text-transform:uppercase;margin-bottom:3px;">Enemies</div>`;
+          enemies.forEach(c => {
+            html += `<div style="font-size:12px;color:${col.inactiveName};">${esc(c.name)} <span style="color:${col.muted}">${c.finalHp}/${c.maxHp} HP</span></div>`;
+          });
+          html += `</div>`;
+        }
+        html += `</div></div>`;
+      });
+      html += `</div>`;
+    }
+
+    main.innerHTML = html;
+    return;
+  }
+
+  // ── Active combat view ────────────────────────────────────────────────────
+  let html = `<button class="back-btn" onclick="combatShowLanding=true;render()">← Back to Overview</button>`;
+
+  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:8px;">
+    <div>
+      <h2 style="font-size:20px;font-weight:normal;color:${col.title};letter-spacing:0.08em;">Combat Encounter</h2>
+      <p style="font-size:13px;color:${col.gold};margin-top:2px;">Round ${enc.round}</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button onclick="prevCombatTurn()" class="btn-sm-ghost" ${enc.combatants.length === 0 ? "disabled" : ""}>← Prev Turn</button>
+      <button onclick="nextCombatTurn()" class="btn-save dirty" ${enc.combatants.length === 0 ? "disabled" : ""}>Next Turn →</button>
+      <button onclick="endCombat()" class="btn-delete" style="font-size:12px;padding:0.3rem 0.8rem;">End Combat</button>
+    </div>
+  </div>`;
+
+  // Add enemy form
+  if (combatAddEnemyOpen) {
+    html += `<div class="box" style="margin-bottom:1rem;">
+      <p class="box-label">Add Enemy / NPC</p>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:8px;align-items:end;">
+        <div><div class="section-label">Name</div><input class="edit-input" id="combat-enemy-name" style="width:100%" placeholder="Enemy name" autofocus></div>
+        <div><div class="section-label">Max HP</div><input class="edit-input" id="combat-enemy-max-hp" type="number" style="width:100%" placeholder="HP"></div>
+        <div><div class="section-label">Current HP</div><input class="edit-input" id="combat-enemy-cur-hp" type="number" style="width:100%" placeholder="Cur HP"></div>
+        <div><div class="section-label">AC</div><input class="edit-input" id="combat-enemy-ac" type="number" style="width:100%" placeholder="AC"></div>
+        <div><div class="section-label">Initiative</div><input class="edit-input" id="combat-enemy-init" type="number" style="width:100%" placeholder="Init"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:0.75rem;">
+        <button onclick="saveNewCombatEnemy()" class="btn-save dirty" style="font-size:12px;">Add to Initiative</button>
+        <button onclick="combatAddEnemyOpen=false;render()" class="btn-sm-ghost" style="font-size:12px;">Cancel</button>
+      </div>
+    </div>`;
+  }
+
+  // Initiative list
+  if (enc.combatants.length === 0) {
+    html += `<div style="text-align:center;padding:2rem;border:1px dashed ${col.dashedBorder};border-radius:3px;color:${col.muted};font-size:14px;margin-bottom:1rem;">No combatants yet. Add enemies below.</div>`;
+  } else {
+    enc.combatants.forEach((c, idx) => {
+      const isActive = idx === enc.currentTurnIdx;
+      const pc = c.type === "pc" ? pcLinks.find(p => p.id === c.id) : null;
+      const name = c.type === "pc" ? (pc?.name || "Unknown PC") : c.name;
+      const currentHp = c.type === "pc" ? (pc?.currentHealth ?? 0) : (c.currentHealth ?? 0);
+      const maxHp = c.type === "pc" ? (pc?.totalHealth ?? 0) : (c.totalHealth ?? 0);
+      const ac = c.type === "pc" ? (pc?.ac ?? 0) : (c.ac ?? 0);
+      const hpPct = maxHp > 0 ? currentHp / maxHp : 1;
+      const hpColor = hpPct > 0.5 ? "#4a9040" : hpPct > 0.25 ? "#b07020" : "#c05040";
+      const borderColor = isActive ? col.activeBorder : (c.type === "pc" ? col.pcBorder : col.enemyBorder);
+      const accentColor = isActive ? col.activeAccent : (c.type === "pc" ? col.pcAccent : col.enemyAccent);
+      const initStr = c.initiative !== null ? String(c.initiative) : "";
+
+      html += `<div style="display:flex;align-items:stretch;background:${col.cardBg};border:1px solid ${borderColor};border-radius:3px;margin-bottom:0.5rem;${isActive ? `box-shadow:0 0 0 1px ${col.activeShadow};` : ""}overflow:hidden;">
+        <div style="width:4px;flex-shrink:0;background:${accentColor};"></div>
+        <div style="flex:1;display:flex;align-items:center;gap:10px;padding:0.6rem 0.75rem;flex-wrap:wrap;">
+
+          <div style="flex-shrink:0;width:54px;text-align:center;">
+            <div style="font-size:9px;color:${col.label};margin-bottom:2px;letter-spacing:0.06em;text-transform:uppercase;">Init</div>
+            <input class="edit-input" type="number" value="${esc(initStr)}" placeholder="—" style="width:100%;text-align:center;padding:2px 4px;font-size:14px;" onchange="updateCombatantInitiative('${esc(c.id)}',this.value)" onclick="this.select()">
+          </div>
+
+          <div style="flex:1;min-width:100px;">
+            <div style="font-size:14px;color:${isActive ? col.activeName : col.inactiveName};font-weight:${isActive ? "600" : "normal"};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(name)}</div>
+            <div style="font-size:9px;color:${c.type === "pc" ? col.pcType : col.enemyType};margin-top:2px;letter-spacing:0.06em;text-transform:uppercase;">${c.type === "pc" ? "Player Character" : "Enemy / NPC"}</div>
+          </div>
+
+          <div style="flex-shrink:0;">
+            <div style="font-size:9px;color:${col.label};margin-bottom:2px;letter-spacing:0.06em;text-transform:uppercase;">HP</div>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <input class="edit-input" type="number" value="${currentHp}" style="width:54px;text-align:center;color:${hpColor};" onchange="updateCombatantHealth('${esc(c.id)}','${c.type}',this.value,null)" onclick="this.select()">
+              <span style="color:${col.label};font-size:12px;">/</span>
+              ${c.type === "pc"
+                ? `<span style="font-size:13px;color:${col.hpMax};min-width:30px;text-align:center;">${maxHp}</span>`
+                : `<input class="edit-input" type="number" value="${maxHp}" style="width:54px;text-align:center;color:${col.hpMax};" onchange="updateCombatantHealth('${esc(c.id)}','enemy',null,this.value)" onclick="this.select()">`
+              }
+            </div>
+          </div>
+
+          <div style="flex-shrink:0;text-align:center;min-width:36px;">
+            <div style="font-size:9px;color:${col.label};margin-bottom:2px;letter-spacing:0.06em;text-transform:uppercase;">AC</div>
+            <div style="font-size:14px;color:${col.acValue};">${ac || "—"}</div>
+          </div>
+
+          ${c.type === "enemy"
+            ? `<button onclick="removeCombatant('${esc(c.id)}')" style="flex-shrink:0;background:none;border:1px solid ${col.removeBorder};color:${col.removeColor};cursor:pointer;padding:3px 7px;border-radius:2px;font-size:13px;line-height:1;" title="Remove from combat">×</button>`
+            : `<div style="width:28px;flex-shrink:0;"></div>`
+          }
+
+        </div>
+      </div>`;
+    });
+  }
+
+  html += `<div style="margin-top:1rem;">
+    <button onclick="combatAddEnemyOpen=true;render()" class="btn-dashed">+ Add Enemy / NPC</button>
+  </div>`;
+
+  main.innerHTML = html;
 }
 
 // ── Settings Page ──────────────────────────────────────────────────────────
@@ -2914,6 +3388,84 @@ function renderSettingsPage(main) {
   }
   html += `</div></div>`;
 
+  // ── Classes ────────────────────────────────────────────────────────────────
+  const cp = lm
+    ? { chBg:"#ece8f4",chBr:"#b0a8d4",chCl:"#4a3a8a",unBg:"#ede8d8",unBr:"#d4c8a0",unCl:"#9a8860",tagBg:"#ece8f4",tagBr:"#b0a8d4",tagCl:"#4a3a8a",addBg:"#ece8f4",addBr:"#b0a8d4",addCl:"#4a3a8a",subChBg:"#e4f0e4",subChBr:"#a0c4a0",subChCl:"#2a5a2a",subUnBg:"#f0eee8",subUnBr:"#d4c8a0",subUnCl:"#9a8860",grpCl:"#7a7090" }
+    : { chBg:"#14101e",chBr:"#2a2048",chCl:"#9a90c8",unBg:"#0d0f14",unBr:"#1e1c14",unCl:"#5a5040",tagBg:"#14101e",tagBr:"#2a2048",tagCl:"#9a90c8",addBg:"#1a1628",addBr:"#2a2048",addCl:"#7a70a8",subChBg:"#101a10",subChBr:"#1e3a1e",subChCl:"#7ab070",subUnBg:"#0d0f14",subUnBr:"#1e1c14",subUnCl:"#5a5040",grpCl:"#3a3020" };
+
+  html += `<div class="settings-section ss-classes">`;
+  html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+    <div>
+      <div class="settings-section-title">Available Classes</div>
+      <div class="settings-section-sub">Control which classes and subclasses appear in the player character dropdowns</div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button id="settings-class-all" style="${btnStyle("#2a3a2a", "#7a9a6a", "#90c090", "#3a8a5a")}">Select All</button>
+      <button id="settings-class-none" style="${btnStyle("#2a2518", "#5a5040", "#c8c0a0", "#9a8860")}">Deselect All</button>
+    </div>
+  </div>`;
+
+  // Custom class tags
+  html += `<div style="display:flex;gap:6px;margin-bottom:${settingsCustomClasses.length ? "0.5rem" : "0"};">
+    <input id="settings-custom-class-input" class="edit-input" placeholder="Add custom class name..." style="flex:1;font-size:13px;">
+    <button id="settings-custom-class-add" style="background:${cp.addBg};border:1px solid ${cp.addBr};border-radius:2px;color:${cp.addCl};font-family:inherit;font-size:13px;padding:4px 14px;cursor:pointer;">+ Add</button>
+  </div>`;
+  if (settingsCustomClasses.length) {
+    html += `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:0.75rem;">`;
+    for (const cls of settingsCustomClasses) {
+      html += `<span style="display:inline-flex;align-items:center;gap:4px;background:${cp.tagBg};border:1px solid ${cp.tagBr};border-radius:2px;padding:4px 8px 4px 10px;font-size:13px;color:${cp.tagCl};">
+        ${esc(cls)}<button data-remove-custom-class="${esc(cls)}" style="background:none;border:none;color:${cp.tagCl};opacity:0.6;cursor:pointer;font-size:15px;line-height:1;padding:0 0 0 2px;" title="Remove">×</button>
+      </span>`;
+    }
+    html += `</div>`;
+  }
+
+  // Each class with its subclasses
+  const allClassEntries = [...ALL_DND_CLASSES, ...settingsCustomClasses.map(n => ({ name: n, subclasses: [], custom: true }))];
+  for (const cls of allClassEntries) {
+    const classEnabled = settingsAllowedClasses.includes(cls.name);
+    const customSubsForClass = settingsCustomSubclasses[cls.name] || [];
+    const builtinSubs = cls.subclasses || [];
+    html += `<div style="margin-bottom:1rem;padding:0.75rem;background:${classEnabled ? cp.chBg : cp.unBg};border:1px solid ${classEnabled ? cp.chBr : cp.unBr};border-radius:3px;">`;
+    html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:${(classEnabled && (builtinSubs.length || customSubsForClass.length)) ? "0.6rem" : "0"};">
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:14px;font-weight:600;color:${classEnabled ? cp.chCl : cp.unCl};">
+        <input type="checkbox" data-class-check="${esc(cls.name)}" style="accent-color:#8a70c8;cursor:pointer;"${classEnabled ? " checked" : ""}> ${esc(cls.name)}
+      </label>
+      ${cls.custom ? `<button data-remove-custom-class="${esc(cls.name)}" style="background:none;border:none;color:${cp.unCl};opacity:0.6;cursor:pointer;font-size:15px;line-height:1;padding:0;margin-left:auto;" title="Remove custom class">×</button>` : ""}
+    </div>`;
+
+    if (classEnabled) {
+      // Subclass checkboxes
+      if (builtinSubs.length || customSubsForClass.length) {
+        html += `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:0.5rem;">`;
+        for (const sub of customSubsForClass) {
+          const key = `${cls.name}|${sub}`;
+          const checked = settingsAllowedSubclasses.includes(key);
+          html += `<span style="display:inline-flex;align-items:center;gap:4px;background:${checked ? cp.subChBg : cp.subUnBg};border:1px solid ${checked ? cp.subChBr : cp.subUnBr};border-radius:2px;padding:3px 8px 3px 4px;font-size:12px;color:${checked ? cp.subChCl : cp.subUnCl};">
+            <input type="checkbox" data-subclass-check="${esc(key)}" style="accent-color:#5db87a;cursor:pointer;"${checked ? " checked" : ""}>
+            ${esc(sub)}
+            <button data-remove-custom-subclass="${esc(key)}" style="background:none;border:none;color:${cp.subChCl};opacity:0.6;cursor:pointer;font-size:13px;line-height:1;padding:0;" title="Remove">×</button>
+          </span>`;
+        }
+        for (const sub of builtinSubs) {
+          const key = `${cls.name}|${sub}`;
+          const checked = settingsAllowedSubclasses.includes(key);
+          html += `<label style="display:inline-flex;align-items:center;gap:5px;background:${checked ? cp.subChBg : cp.subUnBg};border:1px solid ${checked ? cp.subChBr : cp.subUnBr};border-radius:2px;padding:3px 8px;font-size:12px;color:${checked ? cp.subChCl : cp.subUnCl};cursor:pointer;">
+            <input type="checkbox" data-subclass-check="${esc(key)}" style="accent-color:#5db87a;cursor:pointer;"${checked ? " checked" : ""}> ${esc(sub)}
+          </label>`;
+        }
+        html += `</div>`;
+      }
+      // Add custom subclass for this class
+      html += `<div style="display:flex;gap:6px;margin-top:0.25rem;">
+        <input id="settings-custom-subclass-input-${esc(cls.name)}" class="edit-input" placeholder="Add custom subclass..." style="flex:1;font-size:12px;padding:3px 8px;">
+        <button data-add-custom-subclass-class="${esc(cls.name)}" style="background:${cp.addBg};border:1px solid ${cp.addBr};border-radius:2px;color:${cp.addCl};font-family:inherit;font-size:12px;padding:3px 10px;cursor:pointer;">+ Add</button>
+      </div>`;
+    }
+    html += `</div>`;
+  }
+  html += `</div>`;
+
   // ── Data Export / Import ───────────────────────────────────────────────────
   html += `<div class="settings-section ss-data">`;
   html += `<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
@@ -3058,6 +3610,87 @@ function renderSettingsPage(main) {
     saveSettings();
     renderSettingsPage(main);
   };
+
+  // ── Class event handlers ───────────────────────────────────────────────────
+  document.getElementById("settings-class-all").onclick = () => {
+    settingsAllowedClasses = [...ALL_CLASS_NAMES, ...settingsCustomClasses];
+    settingsAllowedSubclasses = [...ALL_SUBCLASS_KEYS, ...Object.entries(settingsCustomSubclasses).flatMap(([cls, subs]) => subs.map(s => `${cls}|${s}`))];
+    saveSettings(); renderSettingsPage(main);
+  };
+  document.getElementById("settings-class-none").onclick = () => {
+    settingsAllowedClasses = []; settingsAllowedSubclasses = [];
+    saveSettings(); renderSettingsPage(main);
+  };
+
+  const customClassInput = document.getElementById("settings-custom-class-input");
+  document.getElementById("settings-custom-class-add").onclick = () => {
+    const val = customClassInput.value.trim();
+    if (!val || settingsCustomClasses.includes(val) || ALL_CLASS_NAMES.includes(val)) return;
+    settingsCustomClasses = [...settingsCustomClasses, val];
+    settingsAllowedClasses = [...settingsAllowedClasses, val];
+    saveSettings(); renderSettingsPage(main);
+  };
+  customClassInput.onkeydown = e => { if (e.key === "Enter") document.getElementById("settings-custom-class-add").click(); };
+
+  main.querySelectorAll("[data-remove-custom-class]").forEach(btn => {
+    btn.onclick = () => {
+      const cls = btn.dataset.removeCustomClass;
+      settingsCustomClasses = settingsCustomClasses.filter(c => c !== cls);
+      settingsAllowedClasses = settingsAllowedClasses.filter(c => c !== cls);
+      const { [cls]: _, ...rest } = settingsCustomSubclasses;
+      settingsCustomSubclasses = rest;
+      saveSettings(); renderSettingsPage(main);
+    };
+  });
+
+  main.querySelectorAll("input[data-class-check]").forEach(cb => {
+    cb.onchange = () => {
+      const cls = cb.dataset.classCheck;
+      if (cb.checked) {
+        if (!settingsAllowedClasses.includes(cls)) settingsAllowedClasses = [...settingsAllowedClasses, cls];
+      } else {
+        settingsAllowedClasses = settingsAllowedClasses.filter(c => c !== cls);
+      }
+      saveSettings(); renderSettingsPage(main);
+    };
+  });
+
+  main.querySelectorAll("input[data-subclass-check]").forEach(cb => {
+    cb.onchange = () => {
+      const key = cb.dataset.subclassCheck;
+      if (cb.checked) {
+        if (!settingsAllowedSubclasses.includes(key)) settingsAllowedSubclasses = [...settingsAllowedSubclasses, key];
+      } else {
+        settingsAllowedSubclasses = settingsAllowedSubclasses.filter(k => k !== key);
+      }
+      saveSettings(); renderSettingsPage(main);
+    };
+  });
+
+  main.querySelectorAll("[data-add-custom-subclass-class]").forEach(btn => {
+    btn.onclick = () => {
+      const cls = btn.dataset.addCustomSubclassClass;
+      const input = document.getElementById(`settings-custom-subclass-input-${cls}`);
+      const val = input?.value.trim();
+      if (!val) return;
+      const existing = settingsCustomSubclasses[cls] || [];
+      if (existing.includes(val)) return;
+      settingsCustomSubclasses = { ...settingsCustomSubclasses, [cls]: [...existing, val] };
+      const key = `${cls}|${val}`;
+      if (!settingsAllowedSubclasses.includes(key)) settingsAllowedSubclasses = [...settingsAllowedSubclasses, key];
+      saveSettings(); renderSettingsPage(main);
+    };
+  });
+
+  main.querySelectorAll("[data-remove-custom-subclass]").forEach(btn => {
+    btn.onclick = () => {
+      const key = btn.dataset.removeCustomSubclass;
+      const [cls, sub] = key.split("|");
+      settingsCustomSubclasses = { ...settingsCustomSubclasses, [cls]: (settingsCustomSubclasses[cls] || []).filter(s => s !== sub) };
+      settingsAllowedSubclasses = settingsAllowedSubclasses.filter(k => k !== key);
+      saveSettings(); renderSettingsPage(main);
+    };
+  });
 
   // ── Data export / import ───────────────────────────────────────────────────
   document.getElementById("settings-export-data").onclick = () => {
@@ -3383,6 +4016,7 @@ function saveCurrentPageState() {
     case "ships": pageState.ships = { shipEditorState }; break;
     case "npcs": pageState.npcs = { npcEditorState }; break;
     case "pcs": pageState.pcs = { pcEditorState }; break;
+    case "combat": break;
   }
 }
 
@@ -3393,6 +4027,8 @@ function restorePageState(page) {
   shipEditorState = null;
   npcEditorState = null;
   pcEditorState = null;
+  combatAddEnemyOpen = false;
+  combatShowLanding = true;
   currentTab = "Overview";
   detailItem = null;
 
