@@ -24,6 +24,34 @@ const ALL_DND_CLASSES = [
 const ALL_CLASS_NAMES = ALL_DND_CLASSES.map(c => c.name);
 const ALL_SUBCLASS_KEYS = ALL_DND_CLASSES.flatMap(c => c.subclasses.map(s => `${c.name}|${s}`));
 
+// ── Bestiary file list ────────────────────────────────────────────────────────
+const BESTIARY_FILES = [
+  "bestiary-aatm.json","bestiary-abh.json","bestiary-ai.json",
+  "bestiary-aitfr-dn.json","bestiary-aitfr-fcd.json","bestiary-aitfr-isf.json","bestiary-aitfr-thp.json",
+  "bestiary-awm.json","bestiary-bam.json","bestiary-bgdia.json","bestiary-bgg.json","bestiary-bmt.json",
+  "bestiary-cm.json","bestiary-coa.json","bestiary-cos.json","bestiary-crcotn.json",
+  "bestiary-dc.json","bestiary-dip.json","bestiary-ditlcot.json","bestiary-dmg.json",
+  "bestiary-dod.json","bestiary-dosi.json","bestiary-dsotdq.json","bestiary-efa.json",
+  "bestiary-egw.json","bestiary-erlw.json","bestiary-esk.json","bestiary-fraif.json",
+  "bestiary-ftd.json","bestiary-ggr.json","bestiary-gos.json","bestiary-gotsf.json",
+  "bestiary-hat-tg.json","bestiary-hftt.json","bestiary-hol.json","bestiary-hotb.json","bestiary-hotdq.json",
+  "bestiary-idrotf.json","bestiary-imr.json","bestiary-jttrc.json","bestiary-kftgv.json","bestiary-kkw.json",
+  "bestiary-lfl.json","bestiary-llk.json","bestiary-lmop.json","bestiary-lox.json","bestiary-lr.json","bestiary-lrdt.json",
+  "bestiary-mabjov.json","bestiary-mcv1sc.json","bestiary-mcv2dc.json","bestiary-mcv3mc.json","bestiary-mcv4ec.json",
+  "bestiary-mff.json","bestiary-mgelft.json","bestiary-mismv1.json","bestiary-mm.json","bestiary-mot.json",
+  "bestiary-mpmm.json","bestiary-mpp.json","bestiary-mtf.json","bestiary-nf.json",
+  "bestiary-nrh-ass.json","bestiary-nrh-at.json","bestiary-nrh-avitw.json","bestiary-nrh-awol.json",
+  "bestiary-nrh-coi.json","bestiary-nrh-tcmc.json","bestiary-nrh-tlt.json",
+  "bestiary-oota.json","bestiary-oow.json","bestiary-pabtso.json","bestiary-phb.json","bestiary-pota.json",
+  "bestiary-ps-a.json","bestiary-ps-d.json","bestiary-ps-i.json","bestiary-ps-k.json","bestiary-ps-x.json","bestiary-ps-z.json",
+  "bestiary-qftis.json","bestiary-rmbre.json","bestiary-rot.json","bestiary-rtg.json",
+  "bestiary-sads.json","bestiary-scc.json","bestiary-sdw.json","bestiary-skt.json","bestiary-slw.json",
+  "bestiary-tce.json","bestiary-tftyp.json","bestiary-toa.json","bestiary-tofw.json","bestiary-ttp.json",
+  "bestiary-vd.json","bestiary-veor.json","bestiary-vgm.json","bestiary-vrgr.json",
+  "bestiary-wbtw.json","bestiary-wdh.json","bestiary-wdmm.json","bestiary-wtthc.json",
+  "bestiary-xdmg.json","bestiary-xge.json","bestiary-xmm.json","bestiary-xphb.json",
+];
+
 function getAllBuiltinStoreTypes() {
   const names = new Set();
   for (const city of CITIES) for (const s of city.shops || []) names.add(s.name);
@@ -94,6 +122,19 @@ let combatHistory = lsGet("combatHistory", []); // [{id, timestamp, round, comba
 function saveCombatHistory() { lsSet("combatHistory", combatHistory); }
 let combatAddEnemyOpen = false;
 let combatShowLanding = true;
+let bestiaryMonsters = null;
+let bestiaryLoading = false;
+let bestiaryQuery = "";
+let bestiarySort = "name";
+let bestiaryDetailMonster = null;
+let bestiaryFilterType = "all";
+let bestiaryFilterSize = "all";
+let bestiaryFilterCrMin = null;
+let bestiaryFilterCrMax = null;
+let bestiaryFilterSource = "all";
+let bestiaryFilterLegendary = false;
+let bestiaryFavorites = lsGet("bestiaryFavorites", {}); // { "Name|Source": {name, source, type, crStr, size} }
+function saveBestiaryFavorites() { lsSet("bestiaryFavorites", bestiaryFavorites); }
 let cityFavorites = lsGet("cityFavorites", {}); // { [cityId]: true }
 function saveCityFavorites() { lsSet("cityFavorites", cityFavorites); }
 let cityTradeOverrides = lsGet("cityTradeOverrides", {}); // { [cityId]: { exports: [...], imports: [...] } }
@@ -175,6 +216,16 @@ function toggleFavCity(id, btn) {
   cityFavorites[numId] = !cityFavorites[numId];
   if (!cityFavorites[numId]) delete cityFavorites[numId];
   saveCityFavorites(); _applyFavBtn(btn, !!cityFavorites[numId]);
+}
+function toggleFavBestiary(key, btn) {
+  if (bestiaryFavorites[key]) {
+    delete bestiaryFavorites[key];
+  } else {
+    const m = bestiaryMonsters?.find(x => `${x.name}|${x.source}` === key);
+    if (m) bestiaryFavorites[key] = { name: m.name, source: m.source, type: m.type, crStr: m.crStr, size: m.size };
+  }
+  saveBestiaryFavorites();
+  if (btn) _applyFavBtn(btn, !!bestiaryFavorites[key]);
 }
 
 // Note key helpers
@@ -444,6 +495,8 @@ function renderHeader() {
     countText = `${pcLinks.length} player character${pcLinks.length === 1 ? "" : "s"}`;
   } else if (currentPage === "combat") {
     countText = combatEncounter.active ? `Round ${combatEncounter.round} — ${combatEncounter.combatants.length} combatants` : "";
+  } else if (currentPage === "bestiary") {
+    countText = bestiaryMonsters ? `${bestiaryMonsters.length.toLocaleString()} monsters` : "";
   } else if (currentPage === "home") {
     countText = "";
   } else if (currentPage === "settings") {
@@ -669,6 +722,65 @@ function renderSidebar() {
     const facFilter = document.getElementById("sidebar-npc-faction-filter");
     if (profFilter) profFilter.onchange = () => { npcFilterProfession = profFilter.value; render(); };
     if (facFilter) facFilter.onchange = () => { npcFilterFaction = facFilter.value; render(); };
+  } else if (currentPage === "bestiary") {
+    sidebar.style.display = "";
+    const crOpts = [
+      { label:"0", val:0 }, { label:"1/8", val:0.125 }, { label:"1/4", val:0.25 }, { label:"1/2", val:0.5 },
+      ...Array.from({length:30}, (_, i) => ({ label: String(i+1), val: i+1 }))
+    ];
+    const crSelect = (id, current) =>
+      `<select id="${id}" class="edit-input" style="width:100%">
+        <option value="all"${current===null?" selected":""}>Any</option>
+        ${crOpts.map(o => `<option value="${o.val}"${current===o.val?" selected":""}>${o.label}</option>`).join("")}
+      </select>`;
+    const monsterTypes = ["aberration","beast","celestial","construct","dragon","elemental","fey","fiend","giant","humanoid","monstrosity","ooze","plant","undead"];
+    const sources = bestiaryMonsters ? [...new Set(bestiaryMonsters.map(m => m.source))].sort() : [];
+    const hasFilters = bestiaryFilterType !== "all" || bestiaryFilterSize !== "all" || bestiaryFilterCrMin !== null || bestiaryFilterCrMax !== null || bestiaryFilterSource !== "all" || bestiaryFilterLegendary;
+    const lm = document.body.classList.contains("light-mode");
+    const labelStyle = `font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:${lm?"#8a7a50":"#5a5040"};margin:0.6rem 0 4px;display:block;`;
+    sidebar.innerHTML = `
+      <p class="sidebar-label">Filters</p>
+      <div style="padding:0 1rem 1rem;">
+        <span style="${labelStyle}">Type</span>
+        <select id="bf-type" class="edit-input" style="width:100%">
+          <option value="all"${bestiaryFilterType==="all"?" selected":""}>All Types</option>
+          ${monsterTypes.map(t => `<option value="${t}"${bestiaryFilterType===t?" selected":""}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`).join("")}
+        </select>
+        <span style="${labelStyle}">Size</span>
+        <select id="bf-size" class="edit-input" style="width:100%">
+          <option value="all"${bestiaryFilterSize==="all"?" selected":""}>All Sizes</option>
+          ${Object.entries(BESTIARY_SIZE_LABELS).map(([k,v]) => `<option value="${k}"${bestiaryFilterSize===k?" selected":""}>${v}</option>`).join("")}
+        </select>
+        <span style="${labelStyle}">CR Min</span>
+        ${crSelect("bf-cr-min", bestiaryFilterCrMin)}
+        <span style="${labelStyle}">CR Max</span>
+        ${crSelect("bf-cr-max", bestiaryFilterCrMax)}
+        <span style="${labelStyle}">Source</span>
+        <select id="bf-source" class="edit-input" style="width:100%">
+          <option value="all"${bestiaryFilterSource==="all"?" selected":""}>All Sources</option>
+          ${sources.map(s => `<option value="${s}"${bestiaryFilterSource===s?" selected":""}>${s}</option>`).join("")}
+        </select>
+        <div style="margin-top:0.75rem;display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="bf-legendary" ${bestiaryFilterLegendary?"checked":""} style="width:16px;height:16px;cursor:pointer;accent-color:${lm?"#7a5e14":"#c8a96e"}">
+          <label for="bf-legendary" style="font-size:13px;color:${lm?"#2a2010":"#c8b890"};cursor:pointer;">Legendary only</label>
+        </div>
+        ${hasFilters ? `<button id="bf-clear" style="margin-top:0.85rem;width:100%;background:none;border:1px solid ${lm?"#c8b890":"#2a2518"};border-radius:3px;color:${lm?"#8a7a50":"#5a5040"};font-family:inherit;font-size:12px;padding:6px;cursor:pointer;">Clear All Filters</button>` : ""}
+      </div>`;
+    const bind = (id, setter) => { const el = document.getElementById(id); if (el) el.onchange = () => { setter(el); renderBestiaryResults(); }; };
+    bind("bf-type",   el => { bestiaryFilterType = el.value; });
+    bind("bf-size",   el => { bestiaryFilterSize = el.value; });
+    bind("bf-cr-min", el => { bestiaryFilterCrMin = el.value === "all" ? null : parseFloat(el.value); });
+    bind("bf-cr-max", el => { bestiaryFilterCrMax = el.value === "all" ? null : parseFloat(el.value); });
+    bind("bf-source", el => { bestiaryFilterSource = el.value; });
+    const legEl = document.getElementById("bf-legendary");
+    if (legEl) legEl.onchange = () => { bestiaryFilterLegendary = legEl.checked; renderBestiaryResults(); };
+    const clearEl = document.getElementById("bf-clear");
+    if (clearEl) clearEl.onclick = () => {
+      bestiaryFilterType = "all"; bestiaryFilterSize = "all";
+      bestiaryFilterCrMin = null; bestiaryFilterCrMax = null;
+      bestiaryFilterSource = "all"; bestiaryFilterLegendary = false;
+      render();
+    };
   } else {
     sidebar.style.display = "none";
   }
@@ -777,6 +889,8 @@ function renderMain() {
     else renderPcsPage(main);
   } else if (currentPage === "combat") {
     renderCombatPage(main);
+  } else if (currentPage === "bestiary") {
+    renderBestiaryPage(main);
   } else if (currentPage === "home") {
     renderHomePage(main);
   } else if (currentPage === "settings") {
@@ -2997,6 +3111,180 @@ function removeCombatant(id) {
   render();
 }
 
+function _stripBestiaryTags(str) {
+  if (typeof str !== "string") return "";
+  return str
+    .replace(/\{@atk ([^}]+)\}/g, (_, t) => {
+      const p = t.split(",").map(s => s.trim());
+      if (p.includes("mw") && p.includes("rw")) return "Melee or Ranged Weapon Attack:";
+      if (p.includes("ms") && p.includes("rs")) return "Melee or Ranged Spell Attack:";
+      if (p.includes("mw")) return "Melee Weapon Attack:";
+      if (p.includes("rw")) return "Ranged Weapon Attack:";
+      if (p.includes("ms")) return "Melee Spell Attack:";
+      if (p.includes("rs")) return "Ranged Spell Attack:";
+      return "Attack:";
+    })
+    .replace(/\{@hit ([^}]+)\}/g, (_, n) => `+${n} to hit`)
+    .replace(/\{@dc ([^}]+)\}/g, (_, n) => `DC ${n}`)
+    .replace(/\{@h\}/g, "Hit: ")
+    .replace(/\{@damage ([^}|]+)[^}]*\}/g, (_, d) => d)
+    .replace(/\{@dice ([^}|]+)[^}]*\}/g, (_, d) => d)
+    .replace(/\{@\w+\s+([^|}]+)(?:\|[^}]*)?\}/g, (_, c) => c)
+    .replace(/\{@\w+\}/g, "");
+}
+function _renderBestiaryEntries(entries) {
+  if (!entries) return "";
+  if (typeof entries === "string") return _stripBestiaryTags(entries);
+  if (Array.isArray(entries)) return entries.map(_renderBestiaryEntries).filter(Boolean).join(" ");
+  if (typeof entries === "object") {
+    if (entries.type === "list") return (entries.items || []).map(i => `• ${_renderBestiaryEntries(i)}`).join("\n");
+    if (entries.entries) return _renderBestiaryEntries(entries.entries);
+    if (entries.entry) return _renderBestiaryEntries(entries.entry);
+  }
+  return "";
+}
+function _flattenDamageTypes(arr) {
+  if (!Array.isArray(arr)) return [];
+  const out = [];
+  for (const item of arr) {
+    if (typeof item === "string") { out.push(item); continue; }
+    if (typeof item === "object") {
+      const types = item.immune || item.resist || item.vulnerable || [];
+      const note = item.note ? ` (${item.note})` : "";
+      types.forEach(t => out.push(t + note));
+    }
+  }
+  return out;
+}
+
+async function loadBestiary() {
+  if (bestiaryMonsters !== null || bestiaryLoading) return;
+  bestiaryLoading = true;
+  const results = await Promise.allSettled(
+    BESTIARY_FILES.map(f => fetch(`Data/bestiary/${f}`).then(r => r.json()))
+  );
+
+  // Pass 1: build raw index for _copy resolution
+  const rawIndex = new Map();
+  for (const r of results) {
+    if (r.status === "fulfilled" && Array.isArray(r.value.monster)) {
+      for (const m of r.value.monster) {
+        rawIndex.set(`${m.name}|${m.source}`, m);
+      }
+    }
+  }
+
+  // Resolve a monster's _copy chain so every field is present
+  function resolveRaw(m, depth = 0) {
+    if (depth > 5 || !m._copy) return m;
+    const base = rawIndex.get(`${m._copy.name}|${m._copy.source}`);
+    if (!base) return m;
+    const resolvedBase = resolveRaw(base, depth + 1);
+    const merged = { ...resolvedBase };
+    for (const [k, v] of Object.entries(m)) {
+      if (k !== "_copy" && v !== undefined) merged[k] = v;
+    }
+    merged.name = m.name;
+    merged.source = m.source;
+    return merged;
+  }
+
+  // Pass 2: extract stats from resolved monsters
+  bestiaryMonsters = [];
+  for (const r of results) {
+    if (r.status === "fulfilled" && Array.isArray(r.value.monster)) {
+      for (const rawM of r.value.monster) {
+        const m = resolveRaw(rawM);
+        const acRaw = Array.isArray(m.ac) ? m.ac[0] : m.ac;
+        const ac = typeof acRaw === "number" ? acRaw : (acRaw?.ac ?? 0);
+        const crRaw = m.cr ?? null;
+        const crStr = crRaw === null ? "—" : (typeof crRaw === "object" ? (crRaw.cr ?? "—") : String(crRaw));
+        const crNum = crStr === "—" ? -1 : crStr === "1/8" ? 0.125 : crStr === "1/4" ? 0.25 : crStr === "1/2" ? 0.5 : parseFloat(crStr) || 0;
+        const typeRaw = m.type ?? "unknown";
+        const type = typeof typeRaw === "string" ? typeRaw : (typeRaw.type ?? "unknown");
+        const tags = typeof typeRaw === "object"
+          ? (typeRaw.tags ?? []).map(t => typeof t === "string" ? t : (t.tag ?? "")).filter(Boolean)
+          : [];
+        const toBlocks = arr => (arr ?? []).map(x => ({ name: x.name, text: _renderBestiaryEntries(x.entries) }));
+        bestiaryMonsters.push({
+          name: m.name, source: m.source,
+          hp: m.hp?.average ?? 0, hpFormula: m.hp?.formula ?? "",
+          ac, crStr, crNum,
+          size: (Array.isArray(m.size) ? m.size[0] : m.size) ?? "M",
+          type, tags,
+          speed: m.speed ?? {},
+          str: m.str ?? 10, dex: m.dex ?? 10, con: m.con ?? 10,
+          int: m.int ?? 10, wis: m.wis ?? 10, cha: m.cha ?? 10,
+          passive: m.passive ?? "—",
+          languages: Array.isArray(m.languages) ? m.languages.join(", ") : (m.languages ?? "—"),
+          senses: Array.isArray(m.senses) ? m.senses.join(", ") : "",
+          saves: m.save ?? {},
+          skills: m.skill ?? {},
+          immune: _flattenDamageTypes(m.immune),
+          resist: _flattenDamageTypes(m.resist),
+          vulnerable: _flattenDamageTypes(m.vulnerable),
+          conditionImmune: Array.isArray(m.conditionImmune) ? m.conditionImmune.filter(c => typeof c === "string") : [],
+          traits: toBlocks(m.trait),
+          actions: toBlocks(m.action),
+          bonusActions: toBlocks(m.bonus),
+          reactions: toBlocks(m.reaction),
+          legendaryActions: toBlocks(m.legendary),
+        });
+      }
+    }
+  }
+  bestiaryLoading = false;
+  const inp = document.getElementById("combat-monster-search");
+  if (inp?.value.trim()) searchBestiary(inp.value.trim());
+  if (currentPage === "bestiary") { renderSidebar(); renderBestiaryResults(); }
+}
+
+function searchBestiary(query) {
+  const dropdown = document.getElementById("combat-monster-dropdown");
+  if (!dropdown) return;
+  if (!query.trim()) { dropdown.style.display = "none"; return; }
+  if (bestiaryLoading || !bestiaryMonsters) {
+    dropdown.innerHTML = `<div style="padding:10px 12px;font-size:12px;opacity:0.6;">Loading bestiary…</div>`;
+    dropdown.style.display = "block";
+    return;
+  }
+  const q = query.toLowerCase();
+  const matches = bestiaryMonsters.filter(m => m.name.toLowerCase().includes(q)).slice(0, 12);
+  if (!matches.length) { dropdown.style.display = "none"; return; }
+  const lm = document.body.classList.contains("light-mode");
+  const bg = lm ? "#f4efe0" : "#1a1814";
+  const border = lm ? "#c8b890" : "#2a2518";
+  const hover = lm ? "#ece5cf" : "#232018";
+  const text = lm ? "#2a2010" : "#c8b890";
+  const muted = lm ? "#8a7a50" : "#7a6a48";
+  dropdown.style.cssText = `display:block;position:absolute;top:100%;left:0;right:0;background:${bg};border:1px solid ${border};border-radius:4px;z-index:200;max-height:260px;overflow-y:auto;margin-top:2px;`;
+  dropdown.innerHTML = matches.map((m, i) =>
+    `<div onmousedown="selectBestiaryMonster(${i})" style="padding:9px 12px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom:1px solid ${border};" onmouseover="this.style.background='${hover}'" onmouseout="this.style.background='transparent'">
+      <span style="color:${text};font-weight:500;">${esc(m.name)} <span style="font-size:11px;font-weight:400;opacity:0.6;">${esc(m.source)}</span></span>
+      <span style="font-size:11px;color:${muted};white-space:nowrap;">CR ${esc(String(m.cr))} &middot; ${m.hp}hp &middot; AC ${m.ac}</span>
+    </div>`
+  ).join("");
+  dropdown._results = matches;
+}
+
+function selectBestiaryMonster(idx) {
+  const dropdown = document.getElementById("combat-monster-dropdown");
+  const m = dropdown?._results?.[idx];
+  if (!m) return;
+  const nameEl = document.getElementById("combat-enemy-name");
+  const maxHpEl = document.getElementById("combat-enemy-max-hp");
+  const curHpEl = document.getElementById("combat-enemy-cur-hp");
+  const acEl = document.getElementById("combat-enemy-ac");
+  if (nameEl) nameEl.value = m.name;
+  if (maxHpEl) maxHpEl.value = m.hp;
+  if (curHpEl) curHpEl.value = m.hp;
+  if (acEl) acEl.value = m.ac;
+  const searchEl = document.getElementById("combat-monster-search");
+  if (searchEl) searchEl.value = m.name;
+  dropdown.style.display = "none";
+  document.getElementById("combat-enemy-init")?.focus();
+}
+
 function saveNewCombatEnemy() {
   const name = document.getElementById("combat-enemy-name")?.value.trim() || "Unknown Enemy";
   const totalHealth = parseInt(document.getElementById("combat-enemy-max-hp")?.value) || 0;
@@ -3153,8 +3441,16 @@ function renderCombatPage(main) {
   if (combatAddEnemyOpen) {
     html += `<div class="box" style="margin-bottom:1rem;">
       <p class="box-label">Add Enemy / NPC</p>
+      <div style="position:relative;margin-bottom:0.75rem;">
+        <div class="section-label">Search Monster</div>
+        <input class="edit-input" id="combat-monster-search" style="width:100%" placeholder="Type to search all sourcebooks…" autofocus
+          oninput="searchBestiary(this.value)"
+          onfocus="loadBestiary();searchBestiary(this.value)"
+          onblur="setTimeout(()=>{const d=document.getElementById('combat-monster-dropdown');if(d)d.style.display='none'},150)">
+        <div id="combat-monster-dropdown" style="display:none;"></div>
+      </div>
       <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:8px;align-items:end;">
-        <div><div class="section-label">Name</div><input class="edit-input" id="combat-enemy-name" style="width:100%" placeholder="Enemy name" autofocus></div>
+        <div><div class="section-label">Name</div><input class="edit-input" id="combat-enemy-name" style="width:100%" placeholder="Enemy name"></div>
         <div><div class="section-label">Max HP</div><input class="edit-input" id="combat-enemy-max-hp" type="number" style="width:100%" placeholder="HP"></div>
         <div><div class="section-label">Current HP</div><input class="edit-input" id="combat-enemy-cur-hp" type="number" style="width:100%" placeholder="Cur HP"></div>
         <div><div class="section-label">AC</div><input class="edit-input" id="combat-enemy-ac" type="number" style="width:100%" placeholder="AC"></div>
@@ -3230,6 +3526,231 @@ function renderCombatPage(main) {
   </div>`;
 
   main.innerHTML = html;
+}
+
+// ── Bestiary Page ──────────────────────────────────────────────────────────
+function _bestiarySpeedStr(speed) {
+  if (!speed) return "—";
+  const parts = [];
+  if (speed.walk != null) parts.push(`${speed.walk} ft.`);
+  if (speed.fly) parts.push(`fly ${speed.fly} ft.`);
+  if (speed.swim) parts.push(`swim ${speed.swim} ft.`);
+  if (speed.burrow) parts.push(`burrow ${speed.burrow} ft.`);
+  if (speed.climb) parts.push(`climb ${speed.climb} ft.`);
+  return parts.join(", ") || "—";
+}
+function _statMod(score) { const m = Math.floor((score - 10) / 2); return m >= 0 ? `+${m}` : `${m}`; }
+const BESTIARY_SIZE_LABELS = { T:"Tiny", S:"Small", M:"Medium", L:"Large", H:"Huge", G:"Gargantuan" };
+
+function renderBestiaryPage(main) {
+  const lm = document.body.classList.contains("light-mode");
+  const col = lm
+    ? { bg:"#f4efe0", border:"#d4c8a0", text:"#2a2010", muted:"#8a7a50", label:"#7a6a40",
+        cardBg:"#ede5cf", cardBorder:"#c8b890", tagBg:"#e0d8c0", tagText:"#6a5a30",
+        sortActive:"#7a5e14", sortActiveBg:"#d8cc9e", sortBorder:"#c8b890", sortText:"#9a8860",
+        inputBg:"#f8f4ec", statBg:"#e8e0cc", statBorder:"#c8b890" }
+    : { bg:"#0d0f14", border:"#1e1c14", text:"#c8b890", muted:"#5a5040", label:"#7a6a48",
+        cardBg:"#10100e", cardBorder:"#2a2518", tagBg:"#1a1810", tagText:"#7a6a48",
+        sortActive:"#c8a96e", sortActiveBg:"#1e1a10", sortBorder:"#2a2518", sortText:"#5a5040",
+        inputBg:"#0d0f14", statBg:"#161412", statBorder:"#2a2518" };
+
+  // ── Detail view ──────────────────────────────────────────────────────────
+  if (bestiaryDetailMonster) {
+    const m = bestiaryDetailMonster;
+    const sizeLabel = BESTIARY_SIZE_LABELS[m.size] ?? m.size;
+    const typeLabel = m.tags?.length ? `${m.type} (${m.tags.join(", ")})` : m.type;
+    const abils = [
+      { label:"STR", val: m.str }, { label:"DEX", val: m.dex }, { label:"CON", val: m.con },
+      { label:"INT", val: m.int }, { label:"WIS", val: m.wis }, { label:"CHA", val: m.cha },
+    ];
+
+    const propRow = (label, val) => val
+      ? `<div style="font-size:13px;margin-bottom:4px;"><span style="color:${col.muted};font-weight:600;">${label}: </span><span style="color:${col.text};">${esc(val)}</span></div>`
+      : "";
+
+    const blockSection = (title, blocks, accentColor) => {
+      if (!blocks?.length) return "";
+      return `<div style="margin-top:1rem;">
+        <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:${accentColor};border-bottom:1px solid ${col.border};padding-bottom:4px;margin-bottom:8px;">${title}</div>
+        ${blocks.map(b => `<div style="margin-bottom:0.6rem;">
+          <span style="font-size:13px;font-weight:700;font-style:italic;color:${col.text};">${esc(b.name)}.</span>
+          <span style="font-size:13px;color:${col.text};"> ${esc(b.text)}</span>
+        </div>`).join("")}
+      </div>`;
+    };
+
+    const chipList = (label, items, chipColor) => {
+      if (!items?.length) return "";
+      return `<div style="font-size:13px;margin-bottom:4px;">
+        <span style="color:${col.muted};font-weight:600;">${label}: </span>
+        ${items.map(i => `<span style="background:${chipColor};color:${col.text};padding:1px 6px;border-radius:3px;font-size:12px;margin-right:3px;">${esc(i)}</span>`).join("")}
+      </div>`;
+    };
+
+    const saveStr = Object.entries(m.saves ?? {}).map(([k,v]) => `${k.toUpperCase()} ${v}`).join(", ");
+    const skillStr = Object.entries(m.skills ?? {}).map(([k,v]) => `${k.charAt(0).toUpperCase()+k.slice(1)} ${v}`).join(", ");
+
+    const dmgImmColor  = lm ? "#ffdede" : "#3a1010";
+    const dmgResColor  = lm ? "#fff3cc" : "#2a2000";
+    const dmgVulColor  = lm ? "#ffe0cc" : "#2a1500";
+    const condColor    = lm ? "#e8e0f4" : "#1e1830";
+
+    const favKey = `${m.name}|${m.source}`;
+    const isFavDetail = !!bestiaryFavorites[favKey];
+    let html = `<button onclick="bestiaryDetailMonster=null;render()" class="back-btn" style="margin-bottom:1rem;">← Back to Bestiary</button>`;
+    html += `<div class="box">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+        <div style="display:flex;align-items:flex-start;gap:8px;">
+          <div>
+            <h2 style="margin:0;font-size:1.4rem;color:${col.text};font-weight:600;">${esc(m.name)}</h2>
+            <div style="font-size:13px;color:${col.muted};margin-top:4px;">${esc(sizeLabel)} ${esc(typeLabel)} &middot; <span style="font-size:12px;background:${col.tagBg};color:${col.tagText};padding:2px 7px;border-radius:3px;">${esc(m.source)}</span></div>
+          </div>
+          <button class="fav-btn${isFavDetail?" fav-active":""}" data-bkey="${esc(favKey)}" onclick="toggleFavBestiary(this.dataset.bkey,this)" title="${isFavDetail?"Remove from favorites":"Add to favorites"}" style="margin-top:2px;">${isFavDetail?SVG_FAV_ON:SVG_FAV_OFF}</button>
+        </div>
+        <div style="font-size:13px;color:${col.muted};text-align:right;">Challenge Rating<br><span style="font-size:1.5rem;font-weight:700;color:${col.text};">CR ${esc(m.crStr)}</span></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:1rem;">
+        ${[
+          { l:"Hit Points", v: m.hp ? `${m.hp}${m.hpFormula ? ` (${m.hpFormula})` : ""}` : "—" },
+          { l:"Armor Class", v: String(m.ac || "—") },
+          { l:"Speed", v: _bestiarySpeedStr(m.speed) },
+        ].map(s => `<div style="background:${col.statBg};border:1px solid ${col.statBorder};border-radius:4px;padding:10px;text-align:center;">
+          <div style="font-size:10px;letter-spacing:0.08em;color:${col.muted};text-transform:uppercase;margin-bottom:4px;">${esc(s.l)}</div>
+          <div style="font-size:13px;font-weight:600;color:${col.text};">${esc(s.v)}</div>
+        </div>`).join("")}
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:1rem;">
+        ${abils.map(s => `<div style="background:${col.statBg};border:1px solid ${col.statBorder};border-radius:4px;padding:8px 4px;text-align:center;">
+          <div style="font-size:10px;letter-spacing:0.06em;color:${col.muted};text-transform:uppercase;">${s.label}</div>
+          <div style="font-size:15px;font-weight:700;color:${col.text};margin-top:2px;">${s.val}</div>
+          <div style="font-size:12px;color:${col.muted};">${_statMod(s.val)}</div>
+        </div>`).join("")}
+      </div>
+
+      <div style="border-top:1px solid ${col.border};padding-top:0.75rem;margin-bottom:0.25rem;">
+        ${propRow("Saving Throws", saveStr)}
+        ${propRow("Skills", skillStr)}
+        ${chipList("Damage Immunities", m.immune, dmgImmColor)}
+        ${chipList("Damage Resistances", m.resist, dmgResColor)}
+        ${chipList("Damage Vulnerabilities", m.vulnerable, dmgVulColor)}
+        ${chipList("Condition Immunities", m.conditionImmune, condColor)}
+        ${propRow("Senses", [m.senses, `passive Perception ${m.passive}`].filter(Boolean).join(", "))}
+        ${propRow("Languages", m.languages || "—")}
+      </div>
+
+      ${blockSection("Traits", m.traits, lm ? "#7a6030" : "#c8a96e")}
+      ${blockSection("Actions", m.actions, lm ? "#5a3a7a" : "#a08aba")}
+      ${blockSection("Bonus Actions", m.bonusActions, lm ? "#3a6a3a" : "#7aaa7a")}
+      ${blockSection("Reactions", m.reactions, lm ? "#3a5a7a" : "#7aaaba")}
+      ${blockSection("Legendary Actions", m.legendaryActions, lm ? "#7a4a10" : "#d4903a")}
+    </div>`;
+    main.innerHTML = html;
+    return;
+  }
+
+  // ── List view — static shell only; results rendered by renderBestiaryResults()
+  main.innerHTML = `
+    <div style="display:flex;gap:8px;margin-bottom:0.75rem;align-items:center;">
+      <input class="edit-input" id="bestiary-search" style="flex:1;" placeholder="Search monsters…" value="${esc(bestiaryQuery)}"
+        oninput="bestiaryQuery=this.value;renderBestiaryResults()">
+      <button id="bestiary-clear" onclick="clearBestiarySearch()"
+        style="display:${bestiaryQuery?'block':'none'};background:none;border:none;color:${col.muted};cursor:pointer;font-size:20px;line-height:1;padding:4px 6px;">×</button>
+    </div>
+    <div id="bestiary-sort-btns"></div>
+    <div id="bestiary-results"></div>`;
+  renderBestiaryResults();
+  document.getElementById("bestiary-search")?.focus();
+}
+
+function clearBestiarySearch() {
+  bestiaryQuery = "";
+  const inp = document.getElementById("bestiary-search");
+  if (inp) inp.value = "";
+  document.getElementById("bestiary-clear").style.display = "none";
+  renderBestiaryResults();
+  inp?.focus();
+}
+
+function renderBestiaryResults() {
+  const resultsEl = document.getElementById("bestiary-results");
+  const sortBtnsEl = document.getElementById("bestiary-sort-btns");
+  const clearBtn = document.getElementById("bestiary-clear");
+  if (!resultsEl) return;
+
+  const lm = document.body.classList.contains("light-mode");
+  const col = lm
+    ? { bg:"#f4efe0", border:"#d4c8a0", text:"#2a2010", muted:"#8a7a50",
+        cardBg:"#ede5cf", cardBorder:"#c8b890", tagBg:"#e0d8c0", tagText:"#6a5a30",
+        sortActive:"#7a5e14", sortActiveBg:"#d8cc9e", sortBorder:"#c8b890", sortText:"#9a8860" }
+    : { bg:"#0d0f14", border:"#1e1c14", text:"#c8b890", muted:"#5a5040",
+        cardBg:"#10100e", cardBorder:"#2a2518", tagBg:"#1a1810", tagText:"#7a6a48",
+        sortActive:"#c8a96e", sortActiveBg:"#1e1a10", sortBorder:"#2a2518", sortText:"#5a5040" };
+
+  if (clearBtn) clearBtn.style.display = bestiaryQuery ? "block" : "none";
+
+  if (sortBtnsEl) {
+    const sorts = [["name","Name"],["cr","CR"],["hp","HP"],["ac","AC"]];
+    sortBtnsEl.innerHTML = `<div style="display:flex;gap:6px;margin-bottom:0.75rem;flex-wrap:wrap;">
+      ${sorts.map(([k,l]) => `<button onclick="bestiarySort='${k}';renderBestiaryResults()"
+        style="background:${bestiarySort===k?col.sortActiveBg:'none'};border:1px solid ${bestiarySort===k?col.sortActive:col.sortBorder};border-radius:3px;color:${bestiarySort===k?col.sortActive:col.sortText};font-family:inherit;font-size:11px;letter-spacing:0.07em;padding:4px 10px;cursor:pointer;">${l}</button>`).join("")}
+    </div>`;
+  }
+
+  if (!bestiaryMonsters && !bestiaryLoading) {
+    loadBestiary().then(() => renderBestiaryResults());
+    resultsEl.innerHTML = `<div style="text-align:center;padding:3rem;color:${col.muted};font-size:14px;">Loading bestiary…</div>`;
+    return;
+  }
+  if (bestiaryLoading) {
+    resultsEl.innerHTML = `<div style="text-align:center;padding:3rem;color:${col.muted};font-size:14px;">Loading bestiary…</div>`;
+    return;
+  }
+
+  const q = bestiaryQuery.toLowerCase();
+  let filtered = q ? bestiaryMonsters.filter(m => m.name.toLowerCase().includes(q)) : [...bestiaryMonsters];
+  if (bestiaryFilterType !== "all")    filtered = filtered.filter(m => m.type === bestiaryFilterType);
+  if (bestiaryFilterSize !== "all")    filtered = filtered.filter(m => m.size === bestiaryFilterSize);
+  if (bestiaryFilterCrMin !== null)    filtered = filtered.filter(m => m.crNum >= bestiaryFilterCrMin);
+  if (bestiaryFilterCrMax !== null)    filtered = filtered.filter(m => m.crNum <= bestiaryFilterCrMax);
+  if (bestiaryFilterSource !== "all")  filtered = filtered.filter(m => m.source === bestiaryFilterSource);
+  if (bestiaryFilterLegendary)         filtered = filtered.filter(m => m.legendaryActions.length > 0);
+  filtered = filtered.sort((a, b) => {
+    if (bestiarySort === "cr") return b.crNum - a.crNum || a.name.localeCompare(b.name);
+    if (bestiarySort === "hp") return b.hp - a.hp || a.name.localeCompare(b.name);
+    if (bestiarySort === "ac") return b.ac - a.ac || a.name.localeCompare(b.name);
+    return a.name.localeCompare(b.name);
+  });
+
+  const total = filtered.length;
+  const shown = filtered.slice(0, 100);
+  let html = `<div style="font-size:12px;color:${col.muted};margin-bottom:0.5rem;">${total.toLocaleString()} result${total===1?"":"s"}${total>100?" — showing first 100":""}</div>`;
+
+  if (!shown.length) {
+    resultsEl.innerHTML = html + `<div style="text-align:center;padding:3rem;color:${col.muted};font-size:14px;">No monsters found.</div>`;
+    return;
+  }
+
+  html += `<div style="display:flex;flex-direction:column;gap:4px;">`;
+  for (const m of shown) {
+    const sizeLabel = BESTIARY_SIZE_LABELS[m.size] ?? m.size;
+    const typeStr = `${sizeLabel} ${m.type}`;
+    const cardKey = `${m.name}|${m.source}`;
+    const isFavCard = !!bestiaryFavorites[cardKey];
+    html += `<div style="background:${col.cardBg};border:1px solid ${col.cardBorder};border-radius:4px;display:flex;align-items:stretch;">
+      <div onclick="bestiaryDetailMonster=bestiaryMonsters.find(x=>x.name===\`${esc(m.name).replace(/`/g,"\\`")}\`&&x.source===\`${esc(m.source).replace(/`/g,"\\`")}\`);render()"
+        style="flex:1;padding:10px 12px;cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;">
+        <div style="font-size:14px;font-weight:600;color:${col.text};">${esc(m.name)}</div>
+        <div style="font-size:13px;font-weight:700;color:${col.text};text-align:right;">CR ${esc(m.crStr)}</div>
+        <div style="font-size:11px;color:${col.muted};">${esc(typeStr)} &middot; <span style="background:${col.tagBg};color:${col.tagText};padding:1px 5px;border-radius:2px;">${esc(m.source)}</span></div>
+        <div style="font-size:11px;color:${col.muted};text-align:right;">${m.hp}hp &middot; AC ${m.ac}</div>
+      </div>
+      <button class="fav-btn${isFavCard?" fav-active":""}" data-bkey="${esc(cardKey)}" onclick="toggleFavBestiary(this.dataset.bkey,this)" title="${isFavCard?"Remove from favorites":"Add to favorites"}" style="border-left:1px solid ${col.cardBorder};border-radius:0 4px 4px 0;padding:0 10px;background:none;cursor:pointer;">${isFavCard?SVG_FAV_ON:SVG_FAV_OFF}</button>
+    </div>`;
+  }
+  html += `</div>`;
+  resultsEl.innerHTML = html;
 }
 
 // ── Settings Page ──────────────────────────────────────────────────────────
@@ -3749,6 +4270,7 @@ function renderHomePage(main) {
   const favShips = shipLinks.filter(s => s.favorited);
   const favNpcs = npcLinks.filter(n => n.favorited);
   const favPcs = pcLinks.filter(p => p.favorited);
+  const favBestiaryEntries = Object.entries(bestiaryFavorites).map(([key, v]) => ({ key, ...v }));
 
   function makeRow(label, meta, onclickStr, favBtn) {
     return `<div role="button" tabindex="0" onclick="${onclickStr}" class="fav-row">
@@ -3811,6 +4333,13 @@ function renderHomePage(main) {
     return makeRow(esc(pc.name), esc(meta), `navToFavPc('${pc.id}')`, favBtnHtml(true, `event.stopPropagation();toggleFavPc('${pc.id}',this)`));
   });
 
+  const bestiaryRows = favBestiaryEntries.map(entry => {
+    const sizeLabel = BESTIARY_SIZE_LABELS[entry.size] ?? entry.size ?? "";
+    const meta = [entry.type ? `CR ${entry.crStr}` : "", sizeLabel, entry.type].filter(Boolean).join(" · ");
+    const jsKey = JSON.stringify(entry.key).replace(/"/g, "&quot;");
+    return makeRow(esc(entry.name), esc(meta), `navToFavBestiary(${jsKey})`, favBtnHtml(true, `event.stopPropagation();toggleFavBestiary(${jsKey},this);if(!bestiaryFavorites[${jsKey}])this.closest('.fav-row').remove()`));
+  });
+
   let html = `<div style="max-width:1200px;margin:0 auto;">`;
   html += `<h2 class="page-title">Favorites</h2>`;
   html += `<p class="page-subtitle-sm" style="margin-bottom:1.5rem;">Your bookmarked locations, items, and characters</p>`;
@@ -3820,10 +4349,11 @@ function renderHomePage(main) {
   html += makePanel("Factions", "#8090c0", factionRows);
   html += makePanel("Stores", "#a09070", storeRows);
   html += `</div>`;
-  html += `<div class="fav-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">`;
+  html += `<div class="fav-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px">`;
   html += makePanel("Ships", "#60a0c0", shipRows);
   html += makePanel("NPCs", "#9a8e6e", npcRows);
   html += makePanel("Player Characters", "#88c0a0", pcRows);
+  html += makePanel("Bestiary", "#7a9070", bestiaryRows);
   html += `</div></div>`;
 
   main.innerHTML = html;
@@ -3914,6 +4444,18 @@ function navToFavPc(id) {
   npcEditorState = null;
   pcEditorState = { ...pc };
   render();
+}
+
+function navToFavBestiary(key) {
+  currentPage = "bestiary";
+  bestiaryDetailMonster = bestiaryMonsters?.find(x => `${x.name}|${x.source}` === key) ?? null;
+  render();
+  if (!bestiaryDetailMonster) {
+    loadBestiary().then(() => {
+      bestiaryDetailMonster = bestiaryMonsters?.find(x => `${x.name}|${x.source}` === key) ?? null;
+      if (bestiaryDetailMonster) render();
+    });
+  }
 }
 
 // ── Global search ─────────────────────────────────────────────────────────
@@ -4017,6 +4559,7 @@ function saveCurrentPageState() {
     case "npcs": pageState.npcs = { npcEditorState }; break;
     case "pcs": pageState.pcs = { pcEditorState }; break;
     case "combat": break;
+    case "bestiary": pageState.bestiary = { bestiaryQuery, bestiarySort, bestiaryDetailMonster, bestiaryFilterType, bestiaryFilterSize, bestiaryFilterCrMin, bestiaryFilterCrMax, bestiaryFilterSource, bestiaryFilterLegendary }; break;
   }
 }
 
@@ -4029,6 +4572,13 @@ function restorePageState(page) {
   pcEditorState = null;
   combatAddEnemyOpen = false;
   combatShowLanding = true;
+  bestiaryDetailMonster = null;
+  bestiaryFilterType = "all";
+  bestiaryFilterSize = "all";
+  bestiaryFilterCrMin = null;
+  bestiaryFilterCrMax = null;
+  bestiaryFilterSource = "all";
+  bestiaryFilterLegendary = false;
   currentTab = "Overview";
   detailItem = null;
 
@@ -4054,6 +4604,17 @@ function restorePageState(page) {
     else if (page === "ships") shipEditorState = saved.shipEditorState;
     else if (page === "npcs") npcEditorState = saved.npcEditorState;
     else if (page === "pcs") pcEditorState = saved.pcEditorState;
+    else if (page === "bestiary") {
+      bestiaryQuery = saved.bestiaryQuery ?? "";
+      bestiarySort = saved.bestiarySort ?? "name";
+      bestiaryDetailMonster = saved.bestiaryDetailMonster ?? null;
+      bestiaryFilterType = saved.bestiaryFilterType ?? "all";
+      bestiaryFilterSize = saved.bestiaryFilterSize ?? "all";
+      bestiaryFilterCrMin = saved.bestiaryFilterCrMin ?? null;
+      bestiaryFilterCrMax = saved.bestiaryFilterCrMax ?? null;
+      bestiaryFilterSource = saved.bestiaryFilterSource ?? "all";
+      bestiaryFilterLegendary = saved.bestiaryFilterLegendary ?? false;
+    }
   }
 }
 
