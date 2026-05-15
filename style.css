@@ -600,20 +600,22 @@ body.light-mode .editor-header {
   #hotbar {
     justify-content: flex-start;
     overflow-x: auto; overflow-y: hidden;
-    padding: 0 16px; gap: 16px;
-    -webkit-overflow-scrolling: touch;
+    padding: 0 20px;
+    gap: 18px;
     scrollbar-width: none;
     height: auto;
-    min-height: 72px;
-    padding-top: 10px;
-    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    padding-top: 14px;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+    /* Prevent iOS swipe-between-apps gesture from firing on hotbar swipes */
+    touch-action: pan-x;
+    overscroll-behavior-x: contain;
   }
   #hotbar::-webkit-scrollbar { display: none; }
   /* Larger touch targets on mobile */
-  .hotbar-btn { flex-shrink: 0; width: 60px; height: 60px; }
-  .hotbar-btn svg { width: 28px; height: 28px; }
+  .hotbar-btn { flex-shrink: 0; width: 72px; height: 72px; border-radius: 14px; }
+  .hotbar-btn svg { width: 32px; height: 32px; }
   /* Extra bottom padding on main content to clear taller hotbar + safe area */
-  #main-content { padding-bottom: calc(7rem + env(safe-area-inset-bottom)); }
+  #main-content { padding-bottom: calc(9rem + env(safe-area-inset-bottom)); }
 
   /* Favorites page — single column vertical list */
   .fav-grid { grid-template-columns: 1fr !important; }
