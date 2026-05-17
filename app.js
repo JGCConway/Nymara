@@ -3661,7 +3661,7 @@ function renderBestiaryPage(main) {
     <div id="bestiary-sort-btns"></div>
     <div id="bestiary-results"></div>`;
   renderBestiaryResults();
-  document.getElementById("bestiary-search")?.focus();
+  if (!('ontouchstart' in window)) document.getElementById("bestiary-search")?.focus();
 }
 
 function clearBestiarySearch() {
@@ -3670,7 +3670,7 @@ function clearBestiarySearch() {
   if (inp) inp.value = "";
   document.getElementById("bestiary-clear").style.display = "none";
   renderBestiaryResults();
-  inp?.focus();
+  if (!('ontouchstart' in window)) inp?.focus();
 }
 
 function renderBestiaryResults() {
